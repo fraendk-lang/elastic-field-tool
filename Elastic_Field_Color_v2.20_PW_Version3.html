@@ -96,6 +96,13 @@ input[type="number"]{width:110px}
 .automation-lane{display:flex;gap:12px;align-items:center;margin-bottom:12px}
 .automation-lane canvas{background:#0b1220;border:1px solid #2a4371;border-radius:12px}
 .automation-lane select{flex:1}
+.automation-timeline{margin-top:20px;border:1px solid #2a4371;border-radius:12px;background:#0b1220;overflow:hidden}
+.automation-timeline-header{padding:8px 12px;background:#14213d;border-bottom:1px solid #2a4371;font-size:0.9rem;color:var(--muted)}
+.automation-timeline-content{position:relative;height:80px;background:#0b1220}
+.automation-timeline-content canvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:1}
+.automation-markers{position:absolute;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none}
+.automation-marker{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--acc);border:1px solid #22314d;pointer-events:auto;cursor:pointer;transform:translate(-50%,-50%);z-index:3}
+.automation-marker:hover{background:var(--acc2);transform:translate(-50%,-50%) scale(1.2)}
 #canvasWrap:fullscreen #hud,
 #canvasWrap:fullscreen #diag { display: none; }
 .btn.small-btn{padding:6px 8px;font-size:1.2rem;line-height:1}
@@ -262,6 +269,15 @@ input[type="number"]{width:110px}
         <div id="automationLanesContainer"></div>
         <button id="addAutomationLane" class="btn">+ Automation hinzufügen</button>
         <div class="mini">Klick = Punkt, Ziehen = bewegen, Doppelklick = löschen.</div>
+        <div id="automationTimeline" class="automation-timeline">
+          <div class="automation-timeline-header">
+            <span class="mini">Timeline-Übersicht</span>
+          </div>
+          <div id="automationTimelineContent" class="automation-timeline-content">
+            <canvas id="automationTimelineCanvas"></canvas>
+            <div id="automationMarkers" class="automation-markers"></div>
+          </div>
+        </div>
       </div>
 
       <div class="tabpanel" id="tab_text">
@@ -400,12 +416,176 @@ E.btnNewText.onclick=()=>{ S.scenes.push(makeScene('Text','text',null,'')); S.se
 E.btnDemo.onclick=()=>{ S.scenes=[makeScene('Rot','image',mkColor(255,60,60),'#'), makeScene('Grün','image',mkColor(60,200,100),'#'), makeScene('Blau','image',mkColor(60,120,255),'#')]; S.media = []; S.scenes.forEach(sc=>S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url})); S.sel=0; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('load demo'); };
 function mkColor(r,g,b){ const c=document.createElement('canvas'); c.width=1920; c.height=1080; const g2=c.getContext('2d'); const grd=g2.createLinearGradient(0,0,1920,1080); grd.addColorStop(0,`rgb(${r},${g},${b})`); grd.addColorStop(1,'#000'); g2.fillStyle=grd; g2.fillRect(0,0,1920,1080); const img=new Image(); img.src=c.toDataURL(); return img; }
 function updateInspector(){ const sc=current(); const inspector = document.querySelector('aside.card'); inspector.style.display = sc ? '' : 'none'; if(!sc) return; ['fx','kb','tr','fit','tx'].forEach(cat=>{ if(sc[cat]) for(const k in sc[cat]) { const el = E[`${cat}_${k}`]; if(el){ if(el.type==='checkbox') el.checked = sc[cat][k]; else el.value=sc[cat][k]; } } }); if(sc.fx.react){ for(const k in sc.fx.react){ const el=E['fx_react_'+k]; if(el){ if(el.type==='checkbox') el.checked=sc.fx.react[k]; else el.value=sc.fx.react[k]; }}} E.inDur.value=sc.duration; ['glow','ca','grain','fadeIn','fadeOut'].forEach(k=> {if(E[`master_${k}`]) E[`master_${k}`].value = S.master[k]}); buildAutomationLanes(); }
-function buildAutomationLanes() { const sc = current(); const container = E.automationLanesContainer; container.innerHTML = ''; if (!sc) return; sc.curves = sc.curves || {}; for (const param in sc.curves) { if (sc.curves[param] && sc.curves[param].length > 0) { createAutomationLane(param); } } }
+function buildAutomationLanes() { const sc = current(); const container = E.automationLanesContainer; container.innerHTML = ''; if (!sc) return; sc.curves = sc.curves || {}; for (const param in sc.curves) { if (sc.curves[param] && sc.curves[param].length > 0) { createAutomationLane(param); } } updateAutomationTimeline(); }
 E.addAutomationLane.onclick = () => { createAutomationLane(); saveState('add automation lane'); };
 function createAutomationLane(param = '') { const sc = current(); if (!sc) return; const lane = document.createElement('div'); lane.className = 'automation-lane'; const select = document.createElement('select'); let options = ''; for(const p in PARAM_RANGES) { const [cat, ...nameParts] = p.split('_'); const name = nameParts.join('_').replace(/_/g, ' '); const label = `${cat.toUpperCase()}: ${name || cat}`; options += `<option value="${p}">${label}</option>`; } select.innerHTML = options; select.value = param || Object.keys(PARAM_RANGES)[0]; const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80; const delBtn = document.createElement('button'); delBtn.className = 'btn'; delBtn.textContent = '−'; delBtn.onclick = () => { const p = select.value; if (sc.curves[p]) { delete sc.curves[p]; } lane.remove(); saveState('delete automation lane'); }; lane.append(select, canvas, delBtn); E.automationLanesContainer.appendChild(lane); function redraw() { drawLane(canvas, select.value); } select.onchange = (e) => { const newParam = e.target.value; const oldParam = e.target.dataset.oldParam; if (oldParam && oldParam !== newParam && sc.curves[oldParam]) { if (!sc.curves[newParam] || sc.curves[newParam].length === 0) { sc.curves[newParam] = [...sc.curves[oldParam]]; delete sc.curves[oldParam]; } } e.target.dataset.oldParam = newParam; redraw(); saveState('change automation param'); }; select.dataset.oldParam = select.value; setupAutomationInteraction(canvas, select); redraw(); }
 function drawLane(canvas, param) { const sc=current(); const g=canvas.getContext('2d'), w=canvas.width, h=canvas.height; g.clearRect(0,0,w,h); g.strokeStyle='rgba(255,255,255,.1)'; for(let x=0;x<=w;x+=w/8){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); } for(let y=0;y<=h;y+=h/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); } if(!sc || !param || !PARAM_RANGES[param]) return; sc.curves[param]=sc.curves[param]||[]; const arr=sc.curves[param].slice().sort((a,b)=>a[0]-b[0]); const [mn,mx]=PARAM_RANGES[param]; if(!arr.length){ g.fillStyle='rgba(255,255,255,.45)'; g.font='12px Inter'; g.textAlign='center'; g.fillText('Klicken zum Starten', w/2, h/2); return; } g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc2'); g.lineWidth=2; g.beginPath(); arr.forEach((pt,i)=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); if(i===0) g.moveTo(x,y); else g.lineTo(x,y);}); g.stroke(); arr.forEach(pt=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc'); g.beginPath(); g.arc(x,y,5,0,Math.PI*2); g.fill(); g.strokeStyle='#22314d'; g.stroke(); }); }
 function ptToXY(t,v,w,h,mn,mx){ const vN=(v-mn)/(mx-mn||1); return [t*w,(1-vN)*h]; } function xyToPt(x,y,w,h,mn,mx){ const t=clamp(x/w,0,1); const v=mn+(mx-mn)*clamp(1-y/h,0,1); return [t,v]; }
-function setupAutomationInteraction(canvas, select) { let drag={on:false,idx:-1}; function getParam() { return select.value; } function hit(x,y){ const sc=current(); if(!sc) return -1; const p=getParam(); if(!sc.curves[p]) return -1; const arr=sc.curves[p]||[]; const [mn,mx]=PARAM_RANGES[p]; for(let i=0;i<arr.length;i++){ const [tx,v]=arr[i]; const [px,py]=ptToXY(tx,v,canvas.width,canvas.height,mn,mx); if(Math.hypot(px-x,py-y)<10) return i; } return -1; } const endInteraction = () => { if(drag.on) saveState('edit automation'); drag.on=false; }; canvas.addEventListener('dblclick', e=>{ const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const idx=hit(x,y); if(idx>=0){ sc.curves[p].splice(idx,1); drawLane(canvas, p); saveState('delete automation point'); } }); canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); sc.curves[p]=sc.curves[p]||[]; const idx=hit(x,y); if(idx>=0){ drag={on:true,idx}; } else { const [mn,mx]=PARAM_RANGES[p]; const pt=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].push(pt); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag={on:true,idx:sc.curves[p].indexOf(pt)}; drawLane(canvas, p); } }); canvas.addEventListener('pointermove', e=>{ if(!drag.on) return; const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const [mn,mx]=PARAM_RANGES[p]; sc.curves[p][drag.idx]=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag.idx=sc.curves[p].findIndex(pt => pt[0] === xyToPt(x,y,canvas.width,canvas.height,mn,mx)[0]); drawLane(canvas, p); }); canvas.addEventListener('pointerup', endInteraction); canvas.addEventListener('pointercancel', endInteraction); }
+function setupAutomationInteraction(canvas, select) { let drag={on:false,idx:-1}; function getParam() { return select.value; } function hit(x,y){ const sc=current(); if(!sc) return -1; const p=getParam(); if(!sc.curves[p]) return -1; const arr=sc.curves[p]||[]; const [mn,mx]=PARAM_RANGES[p]; for(let i=0;i<arr.length;i++){ const [tx,v]=arr[i]; const [px,py]=ptToXY(tx,v,canvas.width,canvas.height,mn,mx); if(Math.hypot(px-x,py-y)<10) return i; } return -1; } const endInteraction = () => { if(drag.on) saveState('edit automation'); drag.on=false; updateAutomationTimeline(); }; canvas.addEventListener('dblclick', e=>{ const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const idx=hit(x,y); if(idx>=0){ sc.curves[p].splice(idx,1); drawLane(canvas, p); updateAutomationTimeline(); saveState('delete automation point'); } }); canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); sc.curves[p]=sc.curves[p]||[]; const idx=hit(x,y); if(idx>=0){ drag={on:true,idx}; } else { const [mn,mx]=PARAM_RANGES[p]; const pt=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].push(pt); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag={on:true,idx:sc.curves[p].indexOf(pt)}; drawLane(canvas, p); updateAutomationTimeline(); } }); canvas.addEventListener('pointermove', e=>{ if(!drag.on) return; const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const [mn,mx]=PARAM_RANGES[p]; sc.curves[p][drag.idx]=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag.idx=sc.curves[p].findIndex(pt => pt[0] === xyToPt(x,y,canvas.width,canvas.height,mn,mx)[0]); drawLane(canvas, p); updateAutomationTimeline(); }); canvas.addEventListener('pointerup', endInteraction); canvas.addEventListener('pointercancel', endInteraction); }
+function updateAutomationTimeline() {
+  const sc = current();
+  const timeline = E.automationTimelineCanvas;
+  const markersContainer = E.automationMarkers;
+  
+  if (!timeline || !markersContainer || !sc) return;
+  
+  // Set canvas size to match timeline scale
+  const duration = sc.duration || 5; // scene duration in seconds
+  const pxPerSec = S.timeline.pxPerSec;
+  const width = Math.max(400, duration * pxPerSec);
+  
+  timeline.width = width;
+  timeline.height = 80;
+  timeline.style.width = width + 'px';
+  
+  drawAutomationTimeline(timeline, duration, pxPerSec);
+  drawAutomationMarkers(markersContainer, sc, duration, pxPerSec);
+}
+
+function drawAutomationTimeline(canvas, duration, pxPerSec) {
+  const g = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  g.clearRect(0, 0, w, h);
+  
+  // Draw time grid
+  g.strokeStyle = 'rgba(255,255,255,.1)';
+  g.lineWidth = 1;
+  
+  // Vertical lines for seconds
+  for (let sec = 0; sec <= duration; sec++) {
+    const x = sec * pxPerSec;
+    g.beginPath();
+    g.moveTo(x, 0);
+    g.lineTo(x, h);
+    g.stroke();
+  }
+  
+  // Horizontal guidelines
+  for (let i = 1; i < 4; i++) {
+    const y = (h / 4) * i;
+    g.beginPath();
+    g.moveTo(0, y);
+    g.lineTo(w, y);
+    g.stroke();
+  }
+  
+  // Draw time labels
+  g.fillStyle = 'rgba(255,255,255,.6)';
+  g.font = '10px Inter';
+  g.textAlign = 'center';
+  
+  for (let sec = 0; sec <= duration; sec++) {
+    const x = sec * pxPerSec;
+    const label = sec.toString().padStart(2, '0') + 's';
+    g.fillText(label, x, h - 5);
+  }
+}
+
+function drawAutomationMarkers(container, sc, duration, pxPerSec) {
+  container.innerHTML = '';
+  
+  if (!sc.curves) return;
+  
+  // Collect all automation points from all parameters
+  const allPoints = [];
+  
+  for (const param in sc.curves) {
+    if (sc.curves[param] && sc.curves[param].length > 0) {
+      sc.curves[param].forEach(([t, value]) => {
+        allPoints.push({
+          time: t,
+          value: value,
+          param: param,
+          timeInSeconds: t * duration
+        });
+      });
+    }
+  }
+  
+  // Sort by time
+  allPoints.sort((a, b) => a.time - b.time);
+  
+  // Create markers
+  allPoints.forEach((point, index) => {
+    const marker = document.createElement('div');
+    marker.className = 'automation-marker';
+    marker.title = `${point.param}: ${point.value.toFixed(2)} @ ${point.timeInSeconds.toFixed(2)}s`;
+    
+    const x = point.time * duration * pxPerSec;
+    const y = 40; // Center of timeline
+    
+    marker.style.left = x + 'px';
+    marker.style.top = y + 'px';
+    
+    // Add drag functionality
+    setupMarkerDrag(marker, point, sc, duration, pxPerSec);
+    
+    container.appendChild(marker);
+  });
+}
+
+function setupMarkerDrag(marker, point, sc, duration, pxPerSec) {
+  let isDragging = false;
+  let startX = 0;
+  let startTime = point.time;
+  
+  marker.addEventListener('pointerdown', (e) => {
+    isDragging = true;
+    startX = e.clientX;
+    startTime = point.time;
+    marker.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    e.stopPropagation();
+  });
+  
+  marker.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    
+    const deltaX = e.clientX - startX;
+    const deltaTime = deltaX / (duration * pxPerSec);
+    const newTime = clamp(startTime + deltaTime, 0, 1);
+    
+    // Update the automation point
+    const curve = sc.curves[point.param];
+    if (curve) {
+      const pointIndex = curve.findIndex(([t, v]) => 
+        Math.abs(t - point.time) < 0.001 && Math.abs(v - point.value) < 0.001
+      );
+      
+      if (pointIndex >= 0) {
+        curve[pointIndex][0] = newTime;
+        curve.sort((a, b) => a[0] - b[0]);
+        point.time = newTime;
+        point.timeInSeconds = newTime * duration;
+        
+        // Update marker position
+        marker.style.left = (newTime * duration * pxPerSec) + 'px';
+        marker.title = `${point.param}: ${point.value.toFixed(2)} @ ${point.timeInSeconds.toFixed(2)}s`;
+        
+        // Redraw all automation lanes
+        document.querySelectorAll('.automation-lane canvas').forEach(canvas => {
+          const select = canvas.parentElement.querySelector('select');
+          if (select) {
+            drawLane(canvas, select.value);
+          }
+        });
+      }
+    }
+  });
+  
+  marker.addEventListener('pointerup', () => {
+    if (isDragging) {
+      isDragging = false;
+      saveState('drag automation marker');
+    }
+  });
+  
+  marker.addEventListener('pointercancel', () => {
+    isDragging = false;
+  });
+}
 document.querySelector('aside.card').addEventListener('input', e=>{ const id=e.target.id; if (!id) return; const isC=e.target.type==='checkbox'; const val=isC?e.target.checked:(e.target.type==='number'?+e.target.value:e.target.value); const [p1,p2,p3] = id.split('_'); if (p1 === 'master') { S.master[p2] = +val; return; } const sc=current(); if(!sc) return; if (p1 === 'fx' && p2 === 'react') { if(!sc.fx.react) sc.fx.react={}; sc.fx.react[p3] = val; } else if(sc[p1] && typeof sc[p1]==='object' && sc[p1][p2] !== undefined){ sc[p1][p2]=val; ['kb','tx'].forEach(prefix => { if (p1 === prefix && p2 === 'on') sc[prefix].on = !!val; }); } else if(id==='inDur'){ sc.duration=Math.max(0.05, +val||0.05); renderTimeline(); } saveState('inspector input'); });
 E.btnExport.onclick = async ()=>{ const duration=endDur(); if(duration<=0.01){ log('Nichts zu exportieren.'); return; } await ensureAC(); const dest=S.audio.ctx.createMediaStreamDestination(); S.audio.gain.connect(dest); const canvasStream=E.view.captureStream(30); const tracks=[...canvasStream.getVideoTracks()]; const aTr=dest.stream.getAudioTracks()[0]; if(aTr) tracks.push(aTr); const mixed=new MediaStream(tracks); const mime = (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') && 'video/webm;codecs=vp9,opus') || (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') && 'video/webm;codecs=vp8,opus') || 'video/webm'; const rec=new MediaRecorder(mixed,{mimeType:mime, videoBitsPerSecond:8_000_000, audioBitsPerSecond:192_000}); const chunks=[]; rec.ondataavailable=e=>{ if(e.data?.size) chunks.push(e.data); }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:mime}); downloadBlob(`efc-${Date.now()}.webm`, blob); document.getElementById('expProg').style.width='0%'; pause(); S.pauseOffset=duration; }; S.pauseOffset=0; renderTimeline(); schedulePlaylist(0); S.playing=true; S.startTime=S.audio.ctx.currentTime; const prog=document.getElementById('expProg'); const iv=setInterval(()=>{ const t=clamp(getT()/duration,0,1); prog.style.width=(t*100).toFixed(1)+'%'; },100); rec.start(100); setTimeout(()=>{ try{rec.stop()}catch{} clearInterval(iv); }, (duration+0.25)*1000); };
 function downloadBlob(name, blob){ const url=URL.createObjectURL(blob); E.dl.href=url; E.dl.download=name; E.dl.click(); setTimeout(()=>URL.revokeObjectURL(url),1e4); }
