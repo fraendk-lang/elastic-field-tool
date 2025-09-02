@@ -143,6 +143,7 @@ input[type="number"]{width:110px}
     <button id="btnUndo" class="btn small-btn" title="Undo (Ctrl+Z)">↩︎</button>
     <button id="btnRedo" class="btn small-btn" title="Redo (Ctrl+Y)">↪︎</button>
     <span style="border-left:1px solid #29416e;height:24px;margin:0 4px;"></span>
+    <button id="btnNew" class="btn" title="Neues Projekt (Ctrl+N)">📄 Neu</button>
     <button id="btnSave" class="btn">💾 Speichern</button>
     <button id="btnLoad" class="btn">📂 Laden</button>
     <input type="file" id="inpLoad" accept=".json,application/json" style="display:none">
@@ -169,10 +170,16 @@ input[type="number"]{width:110px}
       <div id="mediaGrid"></div>
       <hr>
       <div class="row">
-        <button id="btnNewText" class="btn">+ Text-Szene</button>
-        <button id="btnDup" class="btn">Duplizieren</button>
-        <button id="btnDelete" class="btn">Löschen</button>
-        <button id="btnDemo" class="btn">Demo-Szenen</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="btnNewText" class="btn">+ Text-Szene</button>
+          <button id="btnDemo" class="btn">Demo-Szenen</button>
+        </div>
+      </div>
+      <div class="row">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="btnDup" class="btn">Duplizieren</button>
+          <button id="btnDelete" class="btn">Löschen</button>
+        </div>
       </div>
     </div>
   </section>
@@ -410,6 +417,41 @@ document.querySelector('aside.card').addEventListener('input', e=>{ const id=e.t
 E.btnExport.onclick = async ()=>{ const duration=endDur(); if(duration<=0.01){ log('Nichts zu exportieren.'); return; } await ensureAC(); const dest=S.audio.ctx.createMediaStreamDestination(); S.audio.gain.connect(dest); const canvasStream=E.view.captureStream(30); const tracks=[...canvasStream.getVideoTracks()]; const aTr=dest.stream.getAudioTracks()[0]; if(aTr) tracks.push(aTr); const mixed=new MediaStream(tracks); const mime = (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') && 'video/webm;codecs=vp9,opus') || (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') && 'video/webm;codecs=vp8,opus') || 'video/webm'; const rec=new MediaRecorder(mixed,{mimeType:mime, videoBitsPerSecond:8_000_000, audioBitsPerSecond:192_000}); const chunks=[]; rec.ondataavailable=e=>{ if(e.data?.size) chunks.push(e.data); }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:mime}); downloadBlob(`efc-${Date.now()}.webm`, blob); document.getElementById('expProg').style.width='0%'; pause(); S.pauseOffset=duration; }; S.pauseOffset=0; renderTimeline(); schedulePlaylist(0); S.playing=true; S.startTime=S.audio.ctx.currentTime; const prog=document.getElementById('expProg'); const iv=setInterval(()=>{ const t=clamp(getT()/duration,0,1); prog.style.width=(t*100).toFixed(1)+'%'; },100); rec.start(100); setTimeout(()=>{ try{rec.stop()}catch{} clearInterval(iv); }, (duration+0.25)*1000); };
 function downloadBlob(name, blob){ const url=URL.createObjectURL(blob); E.dl.href=url; E.dl.download=name; E.dl.click(); setTimeout(()=>URL.revokeObjectURL(url),1e4); }
 E.btnSave.onclick = () => { const project = { scenes: S.scenes.map(s => { const { el, ...sceneData } = s; return sceneData; }), media: S.media.map(m => { const { el, ...mediaData } = m; return mediaData; }), master: S.master, timeline: S.timeline, midi: S.midi.mappings }; const blob = new Blob([JSON.stringify(project, null, 2)], {type: 'application/json'}); downloadBlob('efc-project.json', blob); log('Projekt gespeichert.'); };
+E.btnNew.onclick = () => { 
+  if (S.scenes.length > 0 || S.media.length > 0 || S.audio.buffers.length > 0) {
+    if (!confirm('Möchten Sie wirklich ein neues Projekt erstellen? Alle ungespeicherten Änderungen gehen verloren.')) {
+      return;
+    }
+  }
+  // Reset all project data
+  S.scenes = [];
+  S.media = [];
+  S.audio.buffers = [];
+  S.audio.names = [];
+  S.audio.total = 0;
+  S.audio.mixBuffer = null;
+  S.sel = -1;
+  S.playing = false;
+  S.pauseOffset = 0;
+  S.master = {glow:0, ca:0, grain:0, fadeIn: 1.0, fadeOut: 2.0};
+  S.timeline = {pxPerSec:140};
+  S.midi.mappings = {};
+  
+  // Clear UI elements
+  buildMediaGrid();
+  buildAudioList();
+  renderTimeline();
+  updateInspector();
+  populateMidiMappings();
+  drawWaveform();
+  
+  // Clear history and save initial state
+  S.history.stack = [];
+  S.history.index = -1;
+  saveState('new project');
+  
+  log('Neues Projekt erstellt.');
+};
 E.btnLoad.onclick = () => E.inpLoad.click();
 E.inpLoad.onchange = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const project = JSON.parse(ev.target.result); S.scenes = project.scenes || []; S.master = project.master || {glow:0,ca:0,grain:0,fadeIn:1,fadeOut:2}; S.timeline = project.timeline || {pxPerSec:140}; S.midi.mappings = project.midi || {}; S.sel = -1; S.media = []; log('Projekt geladen. Bitte benötigte Medien- & Audiodateien laden.'); renderTimeline(); updateInspector(); populateMidiMappings(); saveState('load project'); } catch (err) { log('Fehler beim Laden: ' + err.message); } }; reader.readAsText(file); e.target.value = ''; };
 E.uiScale.addEventListener('input', ()=>{ document.documentElement.style.setProperty('--scale', E.uiScale.value); });
@@ -665,7 +707,7 @@ function handleMidiMessage(message) {
 }
 function createMidiMappingUI() { const grid = E['midi-map-grid']; grid.innerHTML = ''; const header1 = document.createElement('div'); header1.className = 'header'; header1.textContent = 'Parameter'; grid.appendChild(header1); const header2 = document.createElement('div'); header2.className = 'header'; header2.textContent = 'CC #'; grid.appendChild(header2); const params = Object.keys(PARAM_RANGES); for(let i=0; i<16; i++) { const select = document.createElement('select'); select.innerHTML = `<option value="">-</option>` + params.map(p => `<option value="${p}">${p.replace(/_/g,' ')}</option>`).join(''); select.id = `midi_param_${i}`; const input = document.createElement('input'); input.type = 'number'; input.min = 0; input.max = 127; input.id = `midi_cc_${i}`; input.style.width = '80px'; select.dataset.row = i; input.dataset.row = i; const updateMapping = (e) => { const row = e.target.dataset.row; const paramSelect = document.getElementById(`midi_param_${row}`); const ccInput = document.getElementById(`midi_cc_${row}`); Object.keys(S.midi.mappings).forEach(cc => { if (S.midi.mappings[cc] === paramSelect.value) delete S.midi.mappings[cc]; }); if (ccInput.dataset.oldValue) delete S.midi.mappings[ccInput.dataset.oldValue]; if (paramSelect.value && ccInput.value) { S.midi.mappings[ccInput.value] = paramSelect.value; } ccInput.dataset.oldValue = ccInput.value; saveState('midi mapping changed'); }; select.onchange = updateMapping; input.onchange = updateMapping; grid.appendChild(select); grid.appendChild(input); } }
 function populateMidiMappings() { for(let i=0; i<16; i++) { const p = document.getElementById(`midi_param_${i}`); const c = document.getElementById(`midi_cc_${i}`); if(p) p.value = ''; if(c) c.value = ''; } let i = 0; for(const cc in S.midi.mappings) { if (i >= 16) break; const param = S.midi.mappings[cc]; const ccInput = document.getElementById(`midi_cc_${i}`); const paramSelect = document.getElementById(`midi_param_${i}`); if (ccInput && paramSelect) { ccInput.value = cc; paramSelect.value = param; ccInput.dataset.oldValue = cc; } i++; } }
-function setupPowerUserFeatures() { const body = document.body; body.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return; const isMac = navigator.platform.toUpperCase().indexOf('MAC')>=0; const isUndo = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'z' && !e.shiftKey; const isRedo = (isMac ? e.metaKey && e.shiftKey : e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey)); if (isUndo) { e.preventDefault(); undo(); return; } if (isRedo) { e.preventDefault(); redo(); return; } switch(e.key){ case ' ': e.preventDefault(); S.playing ? pause() : play(); break; case 'ArrowLeft': e.preventDefault(); if(S.sel > 0){ S.sel--; renderTimeline(); updateInspector(); } break; case 'ArrowRight': e.preventDefault(); if(S.sel < S.scenes.length - 1){ S.sel++; renderTimeline(); updateInspector(); } break; case 'Delete': case 'Backspace': e.preventDefault(); E.btnDelete.click(); break; case 'd': case 'D': e.preventDefault(); E.btnDup.click(); break; } }); let dragOverlay; body.addEventListener('dragenter', e => { e.preventDefault(); if(!dragOverlay) { dragOverlay = document.createElement('div'); dragOverlay.className = 'drag-overlay'; dragOverlay.textContent = 'Dateien hier ablegen'; body.appendChild(dragOverlay); } }); body.addEventListener('dragleave', e => { e.preventDefault(); if (e.relatedTarget === null || e.relatedTarget === document.documentElement) { dragOverlay?.remove(); dragOverlay = null; } }); body.addEventListener('dragover', e => e.preventDefault()); body.addEventListener('drop', e => { e.preventDefault(); dragOverlay?.remove(); dragOverlay = null; const files = [...(e.dataTransfer.files || [])]; const audioFiles = files.filter(f => f.type.startsWith('audio/')); const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/')); if(audioFiles.length) loadAudioFiles(audioFiles); if(mediaFiles.length) addMedia(mediaFiles); }); }
+function setupPowerUserFeatures() { const body = document.body; body.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return; const isMac = navigator.platform.toUpperCase().indexOf('MAC')>=0; const isUndo = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'z' && !e.shiftKey; const isRedo = (isMac ? e.metaKey && e.shiftKey : e.ctrlKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey)); const isNew = (isMac ? e.metaKey : e.ctrlKey) && e.key === 'n' && !e.shiftKey; if (isUndo) { e.preventDefault(); undo(); return; } if (isRedo) { e.preventDefault(); redo(); return; } if (isNew) { e.preventDefault(); E.btnNew.click(); return; } switch(e.key){ case ' ': e.preventDefault(); S.playing ? pause() : play(); break; case 'ArrowLeft': e.preventDefault(); if(S.sel > 0){ S.sel--; renderTimeline(); updateInspector(); } break; case 'ArrowRight': e.preventDefault(); if(S.sel < S.scenes.length - 1){ S.sel++; renderTimeline(); updateInspector(); } break; case 'Delete': case 'Backspace': e.preventDefault(); E.btnDelete.click(); break; case 'd': case 'D': e.preventDefault(); E.btnDup.click(); break; } }); let dragOverlay; body.addEventListener('dragenter', e => { e.preventDefault(); if(!dragOverlay) { dragOverlay = document.createElement('div'); dragOverlay.className = 'drag-overlay'; dragOverlay.textContent = 'Dateien hier ablegen'; body.appendChild(dragOverlay); } }); body.addEventListener('dragleave', e => { e.preventDefault(); if (e.relatedTarget === null || e.relatedTarget === document.documentElement) { dragOverlay?.remove(); dragOverlay = null; } }); body.addEventListener('dragover', e => e.preventDefault()); body.addEventListener('drop', e => { e.preventDefault(); dragOverlay?.remove(); dragOverlay = null; const files = [...(e.dataTransfer.files || [])]; const audioFiles = files.filter(f => f.type.startsWith('audio/')); const mediaFiles = files.filter(f => f.type.startsWith('image/') || f.type.startsWith('video/')); if(audioFiles.length) loadAudioFiles(audioFiles); if(mediaFiles.length) addMedia(mediaFiles); }); }
 
 function main() {
     const tabs=document.querySelectorAll('.tab'), panels=document.querySelectorAll('.tabpanel'); 
