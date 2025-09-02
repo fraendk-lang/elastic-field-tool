@@ -665,7 +665,7 @@ function captureCanvasSnapshot() {
   }
 }
 
-function pause(){ S.playing=false; clearScheduled(); captureCanvasSnapshot(); }
+function pause(){ S.playing=false; clearScheduled(); }
 E.btnPlay.onclick=play; E.btnPause.onclick=pause; E.btnStop.onclick=()=>{ S.playing=false; S.pauseOffset=0; clearScheduled(); renderTimeline(); }; E.btnHome.onclick=()=>{ S.pauseOffset=0; if(S.playing){ clearScheduled(); ensureAC().then(()=>{ schedulePlaylist(0); S.startTime=S.audio.ctx.currentTime; }); } renderTimeline(); }; E.btnFullscreen.onclick = () => { if (document.fullscreenElement) { document.exitFullscreen?.(); } else { E.canvasWrap.requestFullscreen?.(); } }; E.zoomIn.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec*1.2,20,600); renderTimeline(); }; E.zoomOut.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec/1.2,20,600); renderTimeline(); };
 E.btnDup.onclick=()=>{ const originalScene = current(); if (!originalScene) return; const newScene = JSON.parse(JSON.stringify(originalScene)); newScene.el = originalScene.el; S.scenes.splice(S.sel + 1, 0, newScene); S.sel++; renderTimeline(); updateInspector(); saveState('duplicate scene'); };
 E.btnDelete.onclick=()=>{ if(S.sel<0) return; S.scenes.splice(S.sel,1); S.sel=Math.max(0,S.sel-1); renderTimeline(); updateInspector(); saveState('delete scene'); };
