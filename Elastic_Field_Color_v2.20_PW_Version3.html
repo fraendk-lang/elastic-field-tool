@@ -110,12 +110,25 @@ input[type="number"]{width:110px}
     align-items: center;
 }
 #midi-map-grid > .header { font-weight: bold; color: var(--muted); font-size: 0.9rem; }
+.version-notice {
+    background: linear-gradient(45deg, var(--acc2), var(--acc3));
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    margin-left: 16px;
+    border: 1px solid rgba(255,255,255,0.2);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
 </style>
 </head>
 <body>
 
 <div id="password-overlay">
   <h2>Elastic Field Color</h2>
+  <div class="version-notice">Version 1.0 Beta</div>
   <input type="password" id="password-input" class="btn" placeholder="Passwort eingeben...">
   <button id="password-submit" class="btn">Öffnen</button>
   <p id="password-error" class="mini">Falsches Passwort.</p>
@@ -124,6 +137,7 @@ input[type="number"]{width:110px}
 <div id="root">
 <header>
   <div class="title">Elastic Field <span class="title-color"><span class="c1">C</span><span class="c2">o</span><span class="c3">l</span><span class="c4">o</span><span class="c5">r</span></span></div>
+  <div class="version-notice">Version 1.0 Beta</div>
   <span class="small" style="margin-left:24px;">UI Scale</span><input id="uiScale" type="range" min="0.9" max="1.6" step="0.01" value="1.35">
   <div class="toolbar">
     <button id="btnUndo" class="btn small-btn" title="Undo (Ctrl+Z)">↩︎</button>
