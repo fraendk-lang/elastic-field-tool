@@ -151,6 +151,8 @@ input[type="number"]{width:110px}
     <span style="border-left:1px solid #29416e;height:24px;margin:0 4px;"></span>
     <button id="btnPlay" class="btn">▶ Play</button>
     <button id="btnPause" class="btn">⏸ Pause</button>
+    <button id="btnPauseSnapshot" class="btn">📸 Bild bei Pause</button>
+    <button id="btnManualSnapshot" class="btn">📷 Snapshot</button>
     <button id="btnStop" class="btn">⏹ Stop</button>
     <button id="btnHome" class="btn">⏮ Anfang</button>
     <button id="btnExport" class="btn">● Export (WebM)</button>
@@ -391,7 +393,7 @@ input[type="number"]{width:110px}
 </div> <!-- root -->
 
 <script>
-const S = { playing:false, startTime:0, pauseOffset:0, width:1920, height:1080, scenes:[], sel:-1, media:[], audio:{ctx:null,gain:null,analyser:null,analyserBuffer:null,buffers:[],names:[],total:0,srcs:[],mixBuffer:null}, timeline:{pxPerSec:140}, master:{glow:0, ca:0, grain:0, fadeIn: 1.0, fadeOut: 2.0}, history: {stack: [], index: -1, limit: 50, isNavigating: false}, midi: { mappings: {}, inputs: [], access: null, currentDevice: null } };
+const S = { playing:false, startTime:0, pauseOffset:0, width:1920, height:1080, scenes:[], sel:-1, media:[], audio:{ctx:null,gain:null,analyser:null,analyserBuffer:null,buffers:[],names:[],total:0,srcs:[],mixBuffer:null}, timeline:{pxPerSec:140}, master:{glow:0, ca:0, grain:0, fadeIn: 1.0, fadeOut: 2.0}, history: {stack: [], index: -1, limit: 50, isNavigating: false}, midi: { mappings: {}, inputs: [], access: null, currentDevice: null }, pauseSnapshot: false };
 const PARAM_RANGES = { fx_blur:[0,40], fx_bri:[0,3], fx_con:[0,3], fx_sat:[0,4], fx_hue:[-180,180], fx_zoom:[0.5,4], fx_rot:[-360,360], fx_vig:[0,1], kb_z0:[0.5,4], kb_z1:[0.5,4], kb_x0:[0,100], kb_x1:[0,100], kb_y0:[0,100], kb_y1:[0,100], tx_size:[8,500], tx_x:[-100,200], tx_y:[-100,200], tx_bgAlpha:[0,1], tx_shadowBlur: [0,50], master_glow: [0,1], master_ca: [0,15], master_grain: [0,0.5] };
 const STYLE_FILTERS = { none: '', bw: 'saturate(0) contrast(1.1)', movie: 'contrast(1.2) saturate(0.8) sepia(0.2)', doku: 'saturate(0.7) contrast(1.2) brightness(0.95)', warm: 'sepia(0.4) saturate(1.1)', hypno: 'hue-rotate(180deg) contrast(1.8) saturate(2)' };
 const E={}; document.querySelectorAll('[id]').forEach(el=>E[el.id]=el);
@@ -619,8 +621,8 @@ function captureCanvasSnapshot() {
   }
 }
 
-function pause(){ S.playing=false; clearScheduled(); captureCanvasSnapshot(); }
-E.btnPlay.onclick=play; E.btnPause.onclick=pause; E.btnStop.onclick=()=>{ S.playing=false; S.pauseOffset=0; clearScheduled(); renderTimeline(); }; E.btnHome.onclick=()=>{ S.pauseOffset=0; if(S.playing){ clearScheduled(); ensureAC().then(()=>{ schedulePlaylist(0); S.startTime=S.audio.ctx.currentTime; }); } renderTimeline(); }; E.btnFullscreen.onclick = () => { if (document.fullscreenElement) { document.exitFullscreen?.(); } else { E.canvasWrap.requestFullscreen?.(); } }; E.zoomIn.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec*1.2,20,600); renderTimeline(); }; E.zoomOut.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec/1.2,20,600); renderTimeline(); };
+function pause(){ S.playing=false; clearScheduled(); if(S.pauseSnapshot) captureCanvasSnapshot(); }
+E.btnPlay.onclick=play; E.btnPause.onclick=pause; E.btnPauseSnapshot.onclick=()=>{ S.pauseSnapshot = !S.pauseSnapshot; E.btnPauseSnapshot.style.background = S.pauseSnapshot ? '#1b4d2a' : '#14213d'; E.btnPauseSnapshot.style.color = S.pauseSnapshot ? '#7bff95' : '#eaf2ff'; log(S.pauseSnapshot ? 'Bild bei Pause aktiviert' : 'Bild bei Pause deaktiviert'); }; E.btnManualSnapshot.onclick=()=>{ captureCanvasSnapshot(); }; E.btnStop.onclick=()=>{ S.playing=false; S.pauseOffset=0; clearScheduled(); renderTimeline(); }; E.btnHome.onclick=()=>{ S.pauseOffset=0; if(S.playing){ clearScheduled(); ensureAC().then(()=>{ schedulePlaylist(0); S.startTime=S.audio.ctx.currentTime; }); } renderTimeline(); }; E.btnFullscreen.onclick = () => { if (document.fullscreenElement) { document.exitFullscreen?.(); } else { E.canvasWrap.requestFullscreen?.(); } }; E.zoomIn.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec*1.2,20,600); renderTimeline(); }; E.zoomOut.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec/1.2,20,600); renderTimeline(); };
 E.btnDup.onclick=()=>{ const originalScene = current(); if (!originalScene) return; const newScene = JSON.parse(JSON.stringify(originalScene)); newScene.el = originalScene.el; S.scenes.splice(S.sel + 1, 0, newScene); S.sel++; renderTimeline(); updateInspector(); saveState('duplicate scene'); };
 E.btnDelete.onclick=()=>{ if(S.sel<0) return; S.scenes.splice(S.sel,1); S.sel=Math.max(0,S.sel-1); renderTimeline(); updateInspector(); saveState('delete scene'); };
 E.btnNewText.onclick=()=>{ S.scenes.push(makeScene('Text','text',null,'')); S.sel=S.scenes.length-1; renderTimeline(); updateInspector(); saveState('new text scene'); };
@@ -1308,6 +1310,9 @@ function main() {
     updateInspector(); 
     requestAnimationFrame(loop); 
     setupPowerUserFeatures(); 
+    // Initialize pause snapshot button state
+    E.btnPauseSnapshot.style.background = S.pauseSnapshot ? '#1b4d2a' : '#14213d'; 
+    E.btnPauseSnapshot.style.color = S.pauseSnapshot ? '#7bff95' : '#eaf2ff';
     log('EFC v2.20 bereit.'); 
 }
 
