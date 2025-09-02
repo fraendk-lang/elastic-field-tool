@@ -146,6 +146,7 @@ input[type="number"]{width:110px}
     <span style="border-left:1px solid #29416e;height:24px;margin:0 4px;"></span>
     <button id="btnSave" class="btn">💾 Speichern</button>
     <button id="btnLoad" class="btn">📂 Laden</button>
+    <button id="btnNewProject" class="btn">🆕 Neues Projekt</button>
     <input type="file" id="inpLoad" accept=".json,application/json" style="display:none">
     <span style="border-left:1px solid #29416e;height:24px;margin:0 4px;"></span>
     <button id="btnPlay" class="btn">▶ Play</button>
@@ -358,7 +359,7 @@ input[type="number"]{width:110px}
 </div> <!-- root -->
 
 <script>
-const S = { playing:false, startTime:0, pauseOffset:0, width:1920, height:1080, scenes:[], sel:-1, media:[], audio:{ctx:null,gain:null,analyser:null,analyserBuffer:null,buffers:[],names:[],total:0,srcs:[],mixBuffer:null}, timeline:{pxPerSec:140}, master:{glow:0, ca:0, grain:0, fadeIn: 1.0, fadeOut: 2.0}, history: {stack: [], index: -1, limit: 50, isNavigating: false}, midi: { mappings: {}, inputs: [], access: null } };
+const S = { playing:false, startTime:0, pauseOffset:0, width:1920, height:1080, scenes:[], sel:-1, media:[], audio:{ctx:null,gain:null,analyser:null,analyserBuffer:null,buffers:[],names:[],total:0,srcs:[],mixBuffer:null}, timeline:{pxPerSec:140}, master:{glow:0, ca:0, grain:0, fadeIn: 1.0, fadeOut: 2.0}, history: {stack: [], index: -1, limit: 50, isNavigating: false}, midi: { mappings: {}, inputs: [], access: null, currentDevice: null } };
 const PARAM_RANGES = { fx_blur:[0,40], fx_bri:[0,3], fx_con:[0,3], fx_sat:[0,4], fx_hue:[-180,180], fx_zoom:[0.5,4], fx_rot:[-360,360], fx_vig:[0,1], kb_z0:[0.5,4], kb_z1:[0.5,4], kb_x0:[0,100], kb_x1:[0,100], kb_y0:[0,100], kb_y1:[0,100], tx_size:[8,500], tx_x:[-100,200], tx_y:[-100,200], tx_bgAlpha:[0,1], tx_shadowBlur: [0,50], master_glow: [0,1], master_ca: [0,15], master_grain: [0,0.5] };
 const STYLE_FILTERS = { none: '', bw: 'saturate(0) contrast(1.1)', movie: 'contrast(1.2) saturate(0.8) sepia(0.2)', doku: 'saturate(0.7) contrast(1.2) brightness(0.95)', warm: 'sepia(0.4) saturate(1.1)', hypno: 'hue-rotate(180deg) contrast(1.8) saturate(2)' };
 const E={}; document.querySelectorAll('[id]').forEach(el=>E[el.id]=el);
@@ -561,6 +562,70 @@ E.btnExport.onclick = async ()=>{ const duration=endDur(); if(duration<=0.01){ l
 function downloadBlob(name, blob){ const url=URL.createObjectURL(blob); E.dl.href=url; E.dl.download=name; E.dl.click(); setTimeout(()=>URL.revokeObjectURL(url),1e4); }
 E.btnSave.onclick = () => { const project = { scenes: S.scenes.map(s => { const { el, ...sceneData } = s; return sceneData; }), media: S.media.map(m => { const { el, ...mediaData } = m; return mediaData; }), master: S.master, timeline: S.timeline, midi: S.midi.mappings }; const blob = new Blob([JSON.stringify(project, null, 2)], {type: 'application/json'}); downloadBlob('efc-project.json', blob); log('Projekt gespeichert.'); };
 E.btnLoad.onclick = () => E.inpLoad.click();
+E.btnNewProject.onclick = () => {
+    if (confirm('Alle nicht gespeicherten Änderungen gehen verloren. Fortfahren?')) {
+        createNewProject();
+    }
+};
+function createNewProject() {
+    // Stop any audio playback
+    if (S.playing) {
+        S.playing = false;
+        clearScheduled();
+    }
+    
+    // Clean up MIDI connections but keep them available
+    if (S.midi.currentDevice) {
+        // Just clear mappings, keep device connected
+        S.midi.mappings = {};
+    }
+    
+    // Reset all project data to initial state
+    S.scenes = [];
+    S.sel = -1;
+    S.media = [];
+    S.pauseOffset = 0;
+    
+    // Reset audio data
+    S.audio.buffers = [];
+    S.audio.names = [];
+    S.audio.total = 0;
+    S.audio.srcs = [];
+    S.audio.mixBuffer = null;
+    
+    // Reset timeline
+    S.timeline = { pxPerSec: 140 };
+    
+    // Reset master settings to defaults
+    S.master = { glow: 0, ca: 0, grain: 0, fadeIn: 1.0, fadeOut: 2.0 };
+    
+    // Reset MIDI mappings (but keep device connection)
+    S.midi.mappings = {};
+    
+    // Reset history
+    S.history = { stack: [], index: -1, limit: 50, isNavigating: false };
+    
+    // Update UI
+    renderTimeline();
+    updateInspector();
+    buildMediaGrid();
+    buildAudioList();
+    populateMidiMappings();
+    updateUndoRedoButtons();
+    
+    // Clear any automation lanes
+    const automationContainer = document.getElementById('automationLanesContainer');
+    if (automationContainer) {
+        automationContainer.innerHTML = '';
+    }
+    
+    // Clear input files
+    E.inpAudio.value = '';
+    E.inpMedia.value = '';
+    
+    log('Neues Projekt erstellt.');
+    saveState('new project');
+}
 E.inpLoad.onchange = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (ev) => { try { const project = JSON.parse(ev.target.result); S.scenes = project.scenes || []; S.master = project.master || {glow:0,ca:0,grain:0,fadeIn:1,fadeOut:2}; S.timeline = project.timeline || {pxPerSec:140}; S.midi.mappings = project.midi || {}; S.sel = -1; S.media = []; log('Projekt geladen. Bitte benötigte Medien- & Audiodateien laden.'); renderTimeline(); updateInspector(); populateMidiMappings(); saveState('load project'); } catch (err) { log('Fehler beim Laden: ' + err.message); } }; reader.readAsText(file); e.target.value = ''; };
 E.uiScale.addEventListener('input', ()=>{ document.documentElement.style.setProperty('--scale', E.uiScale.value); });
 const noise = (()=>{ const c=document.createElement('canvas'),g=c.getContext('2d'),d=g.createImageData(100,100),b=new Uint32Array(d.data.buffer); for(let i=0;i<b.length;i++)b[i]=(Math.random()*255|0)<<24; g.putImageData(d,0,0); return c; })();
@@ -589,30 +654,81 @@ function initMidi() {
 }
 E.btnConnectMidi.onclick = initMidi;
 
-// MIDI cleanup function to prevent memory leaks
+// Enhanced MIDI cleanup function to prevent memory leaks
 function cleanupMidi() {
     try {
-        if (S.midi.inputs) {
-            S.midi.inputs.forEach(input => {
-                if (input && typeof input.onmidimessage !== 'undefined') {
-                    input.onmidimessage = null;
+        // Clean up current device reference
+        if (S.midi.currentDevice) {
+            try {
+                S.midi.currentDevice.onmidimessage = null;
+                S.midi.currentDevice.onstatechange = null;
+                if (typeof S.midi.currentDevice.close === 'function') {
+                    S.midi.currentDevice.close().catch(() => {
+                        // Ignore close errors during cleanup
+                    });
                 }
-                if (input && typeof input.onstatechange !== 'undefined') {
-                    input.onstatechange = null;
+            } catch (error) {
+                console.warn('Error cleaning up current MIDI device:', error);
+            }
+            S.midi.currentDevice = null;
+        }
+        
+        // Clean up all input devices
+        if (S.midi.inputs && Array.isArray(S.midi.inputs)) {
+            S.midi.inputs.forEach(input => {
+                if (input) {
+                    try {
+                        if (typeof input.onmidimessage !== 'undefined') {
+                            input.onmidimessage = null;
+                        }
+                        if (typeof input.onstatechange !== 'undefined') {
+                            input.onstatechange = null;
+                        }
+                        // Try to close the input if possible
+                        if (typeof input.close === 'function') {
+                            input.close().catch(() => {
+                                // Ignore close errors during cleanup
+                            });
+                        }
+                    } catch (error) {
+                        console.warn('Error cleaning up MIDI input:', error);
+                    }
                 }
             });
+            S.midi.inputs = [];
         }
         
-        if (S.midi.access && S.midi.access.onstatechange) {
-            S.midi.access.onstatechange = null;
+        // Clean up MIDI access
+        if (S.midi.access) {
+            try {
+                if (S.midi.access.onstatechange) {
+                    S.midi.access.onstatechange = null;
+                }
+            } catch (error) {
+                console.warn('Error cleaning up MIDI access:', error);
+            }
+            S.midi.access = null;
         }
         
-        // Clear throttle cache
+        // Clear throttle cache and reset
         if (typeof midiThrottle !== 'undefined') {
             midiThrottle.lastUpdate = {};
         }
         
-        log('MIDI cleanup completed.');
+        // Reset handleMidiMessage static properties
+        if (handleMidiMessage.lastSave) {
+            delete handleMidiMessage.lastSave;
+        }
+        
+        // Reset MIDI mappings if needed during cleanup
+        if (arguments[0] === 'resetMappings') {
+            S.midi.mappings = {};
+            if (typeof populateMidiMappings === 'function') {
+                populateMidiMappings();
+            }
+        }
+        
+        log('MIDI cleanup abgeschlossen.');
     } catch (error) {
         console.warn('MIDI cleanup error:', error);
     }
@@ -710,46 +826,105 @@ function onMIDIFailure(msg) {
 }
 function attachMidiListener(device) { 
     try {
-        // Validate device parameter
-        if (!device) {
+        // Enhanced device validation
+        if (!device || typeof device !== 'object') {
             log('Fehler: Kein MIDI-Gerät angegeben.');
-            return;
+            return false;
+        }
+        
+        // Validate device properties
+        if (!device.id || !device.name) {
+            log('Fehler: MIDI-Gerät hat ungültige Eigenschaften.');
+            return false;
         }
         
         // Clean up existing listeners to prevent memory leaks
-        S.midi.inputs.forEach(input => {
-            if (input && typeof input.onmidimessage !== 'undefined') {
-                input.onmidimessage = null;
-            }
-        });
-        
-        // Check if device is still connected
-        if (device.state !== 'connected') {
-            log(`MIDI-Gerät "${device.name}" ist nicht verbunden.`);
-            return;
+        if (S.midi.inputs && Array.isArray(S.midi.inputs)) {
+            S.midi.inputs.forEach(input => {
+                if (input && typeof input.onmidimessage !== 'undefined') {
+                    input.onmidimessage = null;
+                }
+                if (input && typeof input.onstatechange !== 'undefined') {
+                    input.onstatechange = null;
+                }
+            });
         }
         
-        // Attach new listener with error handling
-        device.onmidimessage = handleMidiMessage;
+        // Check if device is still connected and accessible
+        if (device.state !== 'connected') {
+            log(`MIDI-Gerät "${device.name}" ist nicht verbunden (Status: ${device.state}).`);
+            return false;
+        }
         
-        // Add disconnect handler
-        device.onstatechange = (e) => {
-            if (e.port.state === 'disconnected') {
-                log(`MIDI-Gerät "${device.name}" wurde getrennt.`);
-                // Try to reconnect to first available device
-                if (S.midi.inputs.length > 0) {
-                    const firstConnected = S.midi.inputs.find(input => input.state === 'connected');
-                    if (firstConnected && firstConnected !== device) {
-                        attachMidiListener(firstConnected);
-                    }
-                }
+        // Try to open the device if it's not already open
+        if (device.connection !== 'open' && typeof device.open === 'function') {
+            device.open().catch(error => {
+                log(`Fehler beim Öffnen des MIDI-Geräts "${device.name}": ${error.message}`);
+            });
+        }
+        
+        // Attach new listener with enhanced error handling
+        device.onmidimessage = (message) => {
+            try {
+                handleMidiMessage(message);
+            } catch (error) {
+                console.warn(`MIDI message processing error for device ${device.name}:`, error);
             }
         };
         
-        log(`MIDI-Listener für "${device.name}" aktiv.`); 
+        // Enhanced disconnect/state change handler
+        device.onstatechange = (e) => {
+            try {
+                const newState = e.port ? e.port.state : 'unknown';
+                log(`MIDI-Gerät "${device.name}" Status geändert: ${newState}`);
+                
+                if (newState === 'disconnected') {
+                    log(`MIDI-Gerät "${device.name}" wurde getrennt.`);
+                    
+                    // Update the device list
+                    setTimeout(() => {
+                        if (S.midi.access) {
+                            S.midi.inputs = Array.from(S.midi.access.inputs.values());
+                            
+                            // Update UI dropdown
+                            if (E.midi_device) {
+                                E.midi_device.innerHTML = S.midi.inputs
+                                    .map(i => `<option value="${i.id}">${i.name} (${i.state})</option>`)
+                                    .join('');
+                            }
+                            
+                            // Try to reconnect to first available connected device
+                            const connectedDevice = S.midi.inputs.find(input => 
+                                input.state === 'connected' && input.id !== device.id
+                            );
+                            if (connectedDevice) {
+                                if (attachMidiListener(connectedDevice)) {
+                                    E.midi_device.value = connectedDevice.id;
+                                    log(`Automatisch zu "${connectedDevice.name}" gewechselt.`);
+                                }
+                            } else {
+                                log('Keine anderen MIDI-Geräte verfügbar.');
+                            }
+                        }
+                    }, 100); // Small delay to let the system update
+                } else if (newState === 'connected') {
+                    log(`MIDI-Gerät "${device.name}" wieder verbunden.`);
+                }
+            } catch (error) {
+                console.error('MIDI state change handler error:', error);
+            }
+        };
+        
+        // Store reference to current device
+        S.midi.currentDevice = device;
+        
+        log(`MIDI-Listener für "${device.name}" erfolgreich aktiviert.`); 
+        return true;
+        
     } catch (error) {
         log(`Fehler beim Anhängen des MIDI-Listeners: ${error.message}`);
         console.error('MIDI listener attachment error:', error);
+        return false;
     }
 }
 // MIDI rate limiting state
@@ -760,57 +935,114 @@ const midiThrottle = {
 
 function handleMidiMessage(message) { 
     try {
-        // Validate message data
-        if (!message || !message.data || !Array.isArray(message.data) || message.data.length < 3) {
+        // Enhanced message validation
+        if (!message || !message.data || !Array.isArray(message.data)) {
             return; // Silently ignore invalid messages
         }
         
-        const [command, control, value] = message.data;
-        
-        // Validate MIDI data ranges
-        if (typeof command !== 'number' || typeof control !== 'number' || typeof value !== 'number') {
+        // MIDI messages can be 1-3 bytes, check minimum requirements
+        if (message.data.length < 1) {
             return;
         }
         
-        if (control < 0 || control > 127 || value < 0 || value > 127) {
+        const [command, control = 0, value = 0] = message.data;
+        
+        // Validate MIDI data types and ranges
+        if (!Number.isInteger(command) || command < 0 || command > 255) {
             return;
         }
         
-        // Rate limiting - throttle updates per control to prevent audio glitches
+        // Only process Control Change messages for now (176-191 range)
+        if (command < 176 || command > 191) {
+            return; // Ignore non-CC messages to prevent confusion
+        }
+        
+        // For CC messages, we need exactly 3 bytes
+        if (message.data.length !== 3) {
+            return;
+        }
+        
+        // Validate control and value ranges
+        if (!Number.isInteger(control) || !Number.isInteger(value) ||
+            control < 0 || control > 127 || value < 0 || value > 127) {
+            return;
+        }
+        
+        // Enhanced rate limiting with per-control tracking
         const now = performance.now();
         const controlKey = `${command}_${control}`;
-        if (midiThrottle.lastUpdate[controlKey] && 
-            now - midiThrottle.lastUpdate[controlKey] < midiThrottle.updateInterval) {
-            return; // Skip this update
+        const lastUpdate = midiThrottle.lastUpdate[controlKey];
+        
+        if (lastUpdate && now - lastUpdate < midiThrottle.updateInterval) {
+            return; // Skip this update to prevent overwhelming the UI
         }
         midiThrottle.lastUpdate[controlKey] = now;
         
-        // Check for Control Change messages (CC)
-        if (command >= 176 && command <= 191) { 
-            const param = S.midi.mappings[control]; 
-            if (param && PARAM_RANGES[param]) { 
-                const [min, max] = PARAM_RANGES[param]; 
-                if (typeof min === 'number' && typeof max === 'number') {
-                    const val = min + (value / 127) * (max - min); 
-                    const [cat, ...pParts] = param.split('_'); 
-                    const p = pParts.join('_'); 
-                    
-                    if (cat === 'master') { 
-                        S.master[p] = val; 
-                        if(E[`master_${p}`]) E[`master_${p}`].value = val; 
-                    } else { 
-                        const sc = current(); 
-                        if (sc && sc[cat]) { 
-                            sc[cat][p] = val; 
-                            if(E[param]) E[param].value = val; 
-                        } 
+        // Clean up old entries to prevent memory leaks
+        if (Object.keys(midiThrottle.lastUpdate).length > 1000) {
+            const oldKeys = Object.keys(midiThrottle.lastUpdate).filter(key => 
+                now - midiThrottle.lastUpdate[key] > 60000 // 1 minute old
+            );
+            oldKeys.forEach(key => delete midiThrottle.lastUpdate[key]);
+        }
+        
+        // Process Control Change messages
+        const param = S.midi.mappings[control]; 
+        if (!param || !PARAM_RANGES[param]) {
+            return; // No mapping or invalid parameter
+        }
+        
+        const [min, max] = PARAM_RANGES[param]; 
+        if (typeof min !== 'number' || typeof max !== 'number' || min >= max) {
+            console.warn(`Invalid parameter range for ${param}:`, [min, max]);
+            return;
+        }
+        
+        // Calculate the scaled value with bounds checking
+        const normalizedValue = Math.max(0, Math.min(1, value / 127));
+        const scaledValue = min + normalizedValue * (max - min);
+        
+        // Apply the parameter change
+        const [cat, ...pParts] = param.split('_'); 
+        const p = pParts.join('_'); 
+        
+        if (cat === 'master') { 
+            if (S.master.hasOwnProperty(p)) {
+                S.master[p] = scaledValue; 
+                const element = E[`master_${p}`];
+                if (element) {
+                    element.value = scaledValue;
+                    // Trigger change event for any listeners
+                    element.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+        } else { 
+            const sc = current(); 
+            if (sc && sc[cat] && typeof sc[cat] === 'object') { 
+                if (sc[cat].hasOwnProperty(p)) {
+                    sc[cat][p] = scaledValue; 
+                    const element = E[param];
+                    if (element) {
+                        element.value = scaledValue;
+                        // Trigger change event for any listeners
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
                     }
                 }
             } 
-        } 
+        }
+        
+        // Save state periodically to avoid overwhelming undo stack
+        if (!handleMidiMessage.lastSave || now - handleMidiMessage.lastSave > 1000) {
+            saveState('midi control change');
+            handleMidiMessage.lastSave = now;
+        }
+        
     } catch (error) {
-        console.warn('MIDI message handling error:', error);
-        // Continue execution to prevent crashes
+        console.warn('MIDI message handling error:', error, 'Message:', message);
+        // Log more details for debugging but don't crash
+        if (error.stack) {
+            console.warn('Stack trace:', error.stack);
+        }
     }
 }
 function createMidiMappingUI() { const grid = E['midi-map-grid']; grid.innerHTML = ''; const header1 = document.createElement('div'); header1.className = 'header'; header1.textContent = 'Parameter'; grid.appendChild(header1); const header2 = document.createElement('div'); header2.className = 'header'; header2.textContent = 'CC #'; grid.appendChild(header2); const params = Object.keys(PARAM_RANGES); for(let i=0; i<16; i++) { const select = document.createElement('select'); select.innerHTML = `<option value="">-</option>` + params.map(p => `<option value="${p}">${p.replace(/_/g,' ')}</option>`).join(''); select.id = `midi_param_${i}`; const input = document.createElement('input'); input.type = 'number'; input.min = 0; input.max = 127; input.id = `midi_cc_${i}`; input.style.width = '80px'; select.dataset.row = i; input.dataset.row = i; const updateMapping = (e) => { const row = e.target.dataset.row; const paramSelect = document.getElementById(`midi_param_${row}`); const ccInput = document.getElementById(`midi_cc_${row}`); Object.keys(S.midi.mappings).forEach(cc => { if (S.midi.mappings[cc] === paramSelect.value) delete S.midi.mappings[cc]; }); if (ccInput.dataset.oldValue) delete S.midi.mappings[ccInput.dataset.oldValue]; if (paramSelect.value && ccInput.value) { S.midi.mappings[ccInput.value] = paramSelect.value; } ccInput.dataset.oldValue = ccInput.value; saveState('midi mapping changed'); }; select.onchange = updateMapping; input.onchange = updateMapping; grid.appendChild(select); grid.appendChild(input); } }
