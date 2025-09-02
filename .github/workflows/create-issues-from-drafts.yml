@@ -1,0 +1,70 @@
+name: Create Issues from Drafts
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run - only show what would be created'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      
+      - name: Process draft issues
+        id: process
+        run: |
+          node create-issues-from-drafts.js
+          echo "processed=true" >> $GITHUB_OUTPUT
+      
+      - name: Show what would be created
+        if: github.event.inputs.dry_run == 'true'
+        run: |
+          echo "## Draft Issues Found:"
+          cat draft-issues.json | jq -r '.[] | "- **\(.title)**\n  Labels: \(.labels | join(", "))\n  Body length: \(.body | length) chars\n"'
+          echo ""
+          echo "## Generated Script:"
+          cat create-github-issues.sh
+      
+      - name: Create GitHub issues
+        if: github.event.inputs.dry_run == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Creating issues from drafts..."
+          ./create-github-issues.sh
+      
+      - name: Archive processed drafts
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          # Move processed drafts to an archive folder
+          mkdir -p issues/archive
+          for file in issues/*.md; do
+            if [ -f "$file" ]; then
+              mv "$file" "issues/archive/$(basename "$file" .md)-$(date +%Y%m%d).md"
+            fi
+          done
+          
+          # Commit the changes
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add issues/archive/
+          git commit -m "Archive processed draft issues" || echo "No files to archive"
+          git push || echo "No changes to push"

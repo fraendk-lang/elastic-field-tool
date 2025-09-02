@@ -1,0 +1,8 @@
+[
+  {
+    "title": "Kleine Timeline unter der Automation zur besseren Kontrolle",
+    "body": "## Beschreibung\n\nEine kleine Timeline unter der Automation würde die Kontrolle über die Abläufe verbessern und einen besseren Überblick bieten. Dies könnte durch visuelle Darstellungen der Automatisierungsprozesse erreicht werden.\n\n## Vorteile\n- Bessere Nachverfolgbarkeit von Änderungen\n- Erhöhte Transparenz der Automatisierungsabläufe\n- Möglichkeit zur frühzeitigen Identifizierung von Problemen\n\n## Aufgaben\n- [ ] Entwurf der Timeline-Funktionalität\n- [ ] Implementierung der Visualisierung\n- [ ] Tests zur Überprüfung der Funktionalität",
+    "labels": [],
+    "assignees": []
+  }
+]
