@@ -123,6 +123,7 @@ input[type="number"]{width:110px}
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -261,6 +262,13 @@ input[type="number"]{width:110px}
       <div class="tabpanel" id="tab_auto">
         <div id="automationLanesContainer"></div>
         <button id="addAutomationLane" class="btn">+ Automation hinzufügen</button>
+        <div class="row">
+          <button id="btnSnapshotAuto" class="btn">📸 Snapshot als Bild speichern</button>
+          <select id="snapshotFormat" style="width:auto;">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+          </select>
+        </div>
         <div class="mini">Klick = Punkt, Ziehen = bewegen, Doppelklick = löschen.</div>
       </div>
 
@@ -402,6 +410,121 @@ function mkColor(r,g,b){ const c=document.createElement('canvas'); c.width=1920;
 function updateInspector(){ const sc=current(); const inspector = document.querySelector('aside.card'); inspector.style.display = sc ? '' : 'none'; if(!sc) return; ['fx','kb','tr','fit','tx'].forEach(cat=>{ if(sc[cat]) for(const k in sc[cat]) { const el = E[`${cat}_${k}`]; if(el){ if(el.type==='checkbox') el.checked = sc[cat][k]; else el.value=sc[cat][k]; } } }); if(sc.fx.react){ for(const k in sc.fx.react){ const el=E['fx_react_'+k]; if(el){ if(el.type==='checkbox') el.checked=sc.fx.react[k]; else el.value=sc.fx.react[k]; }}} E.inDur.value=sc.duration; ['glow','ca','grain','fadeIn','fadeOut'].forEach(k=> {if(E[`master_${k}`]) E[`master_${k}`].value = S.master[k]}); buildAutomationLanes(); }
 function buildAutomationLanes() { const sc = current(); const container = E.automationLanesContainer; container.innerHTML = ''; if (!sc) return; sc.curves = sc.curves || {}; for (const param in sc.curves) { if (sc.curves[param] && sc.curves[param].length > 0) { createAutomationLane(param); } } }
 E.addAutomationLane.onclick = () => { createAutomationLane(); saveState('add automation lane'); };
+E.btnSnapshotAuto.onclick = async () => { 
+  try {
+    const panel = document.getElementById('tab_auto');
+    if (!panel) {
+      log('Automation Panel nicht gefunden.');
+      return;
+    }
+    
+    const format = E.snapshotFormat.value;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = `automation-panel-${timestamp}.${format}`;
+    
+    log('Erstelle Snapshot...');
+    
+    // Fallback: Use browser screenshot API if available, or show fallback message
+    if (typeof html2canvas !== 'undefined') {
+      const canvas = await html2canvas(panel, {
+        backgroundColor: '#060a12',
+        useCORS: true,
+        allowTaint: true,
+        scale: 1
+      });
+      
+      canvas.toBlob(blob => {
+        if (blob) {
+          downloadBlob(filename, blob);
+          log('Automation Panel Snapshot gespeichert: ' + filename);
+        } else {
+          log('Fehler beim Erstellen des Snapshots.');
+        }
+      }, format === 'jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+    } else {
+      // Native fallback using dom-to-image-like approach
+      captureElementToCanvas(panel, format, filename);
+    }
+    
+  } catch (err) {
+    log('Fehler beim Snapshot: ' + err.message);
+  }
+};
+
+function captureElementToCanvas(element, format, filename) {
+  try {
+    // Get element dimensions and position
+    const rect = element.getBoundingClientRect();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Set canvas size
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    
+    // Fill background
+    ctx.fillStyle = '#060a12';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Capture automation lanes by recreating them on canvas
+    const lanes = element.querySelectorAll('.automation-lane');
+    let yOffset = 20;
+    
+    ctx.fillStyle = '#eaf2ff';
+    ctx.font = '14px Inter, system-ui';
+    ctx.textAlign = 'left';
+    
+    if (lanes.length === 0) {
+      ctx.fillText('Keine Automation Lanes vorhanden', 20, yOffset + 20);
+    } else {
+      lanes.forEach((lane, index) => {
+        const select = lane.querySelector('select');
+        const canvasEl = lane.querySelector('canvas');
+        
+        if (select && canvasEl) {
+          // Draw parameter label
+          ctx.fillText(`${index + 1}. ${select.value}`, 20, yOffset);
+          yOffset += 25;
+          
+          // Copy the automation canvas
+          try {
+            ctx.drawImage(canvasEl, 20, yOffset);
+            yOffset += canvasEl.height + 20;
+          } catch (e) {
+            // If canvas can't be copied due to CORS, draw placeholder
+            ctx.strokeStyle = '#2a4371';
+            ctx.strokeRect(20, yOffset, canvasEl.width, canvasEl.height);
+            ctx.fillStyle = '#9fb0c4';
+            ctx.textAlign = 'center';
+            ctx.fillText('Automation Kurve', 20 + canvasEl.width/2, yOffset + canvasEl.height/2);
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#eaf2ff';
+            yOffset += canvasEl.height + 20;
+          }
+        }
+      });
+    }
+    
+    // Add timestamp
+    ctx.font = '12px Inter, system-ui';
+    ctx.fillStyle = '#9fb0c4';
+    ctx.textAlign = 'right';
+    ctx.fillText(`Erstellt: ${new Date().toLocaleString()}`, canvas.width - 20, canvas.height - 10);
+    
+    // Convert to blob and download
+    canvas.toBlob(blob => {
+      if (blob) {
+        downloadBlob(filename, blob);
+        log('Automation Panel Snapshot gespeichert: ' + filename);
+      } else {
+        log('Fehler beim Erstellen des Snapshots.');
+      }
+    }, format === 'jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+    
+  } catch (err) {
+    log('Fehler beim nativen Snapshot: ' + err.message);
+  }
+}
 function createAutomationLane(param = '') { const sc = current(); if (!sc) return; const lane = document.createElement('div'); lane.className = 'automation-lane'; const select = document.createElement('select'); let options = ''; for(const p in PARAM_RANGES) { const [cat, ...nameParts] = p.split('_'); const name = nameParts.join('_').replace(/_/g, ' '); const label = `${cat.toUpperCase()}: ${name || cat}`; options += `<option value="${p}">${label}</option>`; } select.innerHTML = options; select.value = param || Object.keys(PARAM_RANGES)[0]; const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80; const delBtn = document.createElement('button'); delBtn.className = 'btn'; delBtn.textContent = '−'; delBtn.onclick = () => { const p = select.value; if (sc.curves[p]) { delete sc.curves[p]; } lane.remove(); saveState('delete automation lane'); }; lane.append(select, canvas, delBtn); E.automationLanesContainer.appendChild(lane); function redraw() { drawLane(canvas, select.value); } select.onchange = (e) => { const newParam = e.target.value; const oldParam = e.target.dataset.oldParam; if (oldParam && oldParam !== newParam && sc.curves[oldParam]) { if (!sc.curves[newParam] || sc.curves[newParam].length === 0) { sc.curves[newParam] = [...sc.curves[oldParam]]; delete sc.curves[oldParam]; } } e.target.dataset.oldParam = newParam; redraw(); saveState('change automation param'); }; select.dataset.oldParam = select.value; setupAutomationInteraction(canvas, select); redraw(); }
 function drawLane(canvas, param) { const sc=current(); const g=canvas.getContext('2d'), w=canvas.width, h=canvas.height; g.clearRect(0,0,w,h); g.strokeStyle='rgba(255,255,255,.1)'; for(let x=0;x<=w;x+=w/8){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); } for(let y=0;y<=h;y+=h/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); } if(!sc || !param || !PARAM_RANGES[param]) return; sc.curves[param]=sc.curves[param]||[]; const arr=sc.curves[param].slice().sort((a,b)=>a[0]-b[0]); const [mn,mx]=PARAM_RANGES[param]; if(!arr.length){ g.fillStyle='rgba(255,255,255,.45)'; g.font='12px Inter'; g.textAlign='center'; g.fillText('Klicken zum Starten', w/2, h/2); return; } g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc2'); g.lineWidth=2; g.beginPath(); arr.forEach((pt,i)=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); if(i===0) g.moveTo(x,y); else g.lineTo(x,y);}); g.stroke(); arr.forEach(pt=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc'); g.beginPath(); g.arc(x,y,5,0,Math.PI*2); g.fill(); g.strokeStyle='#22314d'; g.stroke(); }); }
 function ptToXY(t,v,w,h,mn,mx){ const vN=(v-mn)/(mx-mn||1); return [t*w,(1-vN)*h]; } function xyToPt(x,y,w,h,mn,mx){ const t=clamp(x/w,0,1); const v=mn+(mx-mn)*clamp(1-y/h,0,1); return [t,v]; }
