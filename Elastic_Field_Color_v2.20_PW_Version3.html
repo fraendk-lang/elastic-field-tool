@@ -400,7 +400,34 @@ E.playArea.addEventListener('click', (e)=>{ const r=E.sceneWrap.getBoundingClien
 document.body.addEventListener('click', () => document.querySelectorAll('.tr-menu').forEach(m => m.classList.remove('show')));
 function loop(ts){ if(S.playing){ S.pauseOffset=getT(); if(S.pauseOffset>=endDur()) pause(); } let audioSignal = 0; if(S.audio.analyser){ S.audio.analyser.getByteFrequencyData(S.audio.analyserBuffer); audioSignal = S.audio.analyserBuffer.reduce((s,v)=>s+v,0) / S.audio.analyserBuffer.length / 255; } const T=S.pauseOffset; let acc=0, active=null, p=0, idx=-1, trans=false; for(let i=0;i<S.scenes.length;i++){ const sc=S.scenes[i]; if(T>=acc && T<acc+sc.duration){ active=sc; idx=i; p=(T-acc)/sc.duration; const next=S.scenes[i+1]; const left=sc.duration-(T-acc); if(next && sc.tr.type!=='none' && left<sc.tr.dur){ trans=true; const tp=clamp(1-(left/sc.tr.dur),0,1); const drawA=()=>renderScene(sc,p,audioSignal); const drawB=()=>renderScene(next,0,audioSignal); (Transitions[sc.tr.type]||Transitions.none)(tp,drawA,drawB);} break; } acc+=sc.duration; } if(!trans && active) renderScene(active,p,audioSignal); else if(!active && S.scenes.length) renderScene(S.scenes.at(-1),1,audioSignal); ctx.save(); if(S.master.glow > 0){ ctx.filter = `blur(${S.master.glow*8}px) brightness(1.2)`; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(E.view, 0, 0); } if(S.master.ca > 0){ ctx.globalCompositeOperation = 'lighter'; ctx.filter = `blur(${S.master.ca*0.2}px)`; ctx.drawImage(E.view,-S.master.ca,0); ctx.drawImage(E.view,S.master.ca,0); } ctx.restore(); if(S.master.grain > 0){ ctx.save(); ctx.globalAlpha = S.master.grain; const noise = (()=>{ const c=document.createElement('canvas'),g=c.getContext('2d'),d=g.createImageData(100,100),b=new Uint32Array(d.data.buffer); for(let i=0;i<b.length;i++)b[i]=(Math.random()*255|0)<<24; g.putImageData(d,0,0); return c; })(); ctx.fillStyle = ctx.createPattern(noise, 'repeat'); ctx.fillRect(0,0,S.width,S.height); ctx.restore(); } const totalDur = endDur(); let fadeAlpha = 0; if (S.master.fadeIn > 0 && T < S.master.fadeIn) fadeAlpha = 1 - T / S.master.fadeIn; if (S.master.fadeOut > 0 && T > totalDur - S.master.fadeOut) fadeAlpha = (T - (totalDur - S.master.fadeOut)) / S.master.fadeOut; if (fadeAlpha > 0) { ctx.fillStyle = `rgba(0,0,0,${clamp(fadeAlpha,0,1)})`; ctx.fillRect(0,0,S.width,S.height); } E.hud.textContent = `${S.playing?'PLAY':'PAUSE'} · ${fmt(T)} · ${(idx > -1 ? S.scenes[idx].name : '—')}`; updatePlayhead(); requestAnimationFrame(loop); }
 function play(){ ensureAC().then(()=>{ if(S.playing) return; S.playing=true; S.startTime=S.audio.ctx.currentTime - S.pauseOffset; if(S.audio.buffers.length) schedulePlaylist(S.pauseOffset); }); }
-function pause(){ S.playing=false; clearScheduled(); }
+function captureCanvasSnapshot() {
+  try {
+    // Create timestamp in the required format
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    const second = String(now.getSeconds()).padStart(2, '0');
+    const filename = `snapshot-${year}-${month}-${day}-${hour}-${minute}-${second}.png`;
+    
+    // Capture the canvas as PNG
+    E.view.toBlob(blob => {
+      if (blob) {
+        downloadBlob(filename, blob);
+        log('Canvas-Snapshot gespeichert: ' + filename);
+      } else {
+        log('Fehler beim Erstellen des Canvas-Snapshots.');
+      }
+    }, 'image/png');
+    
+  } catch (err) {
+    log('Fehler beim Canvas-Snapshot: ' + err.message);
+  }
+}
+
+function pause(){ S.playing=false; clearScheduled(); captureCanvasSnapshot(); }
 E.btnPlay.onclick=play; E.btnPause.onclick=pause; E.btnStop.onclick=()=>{ S.playing=false; S.pauseOffset=0; clearScheduled(); renderTimeline(); }; E.btnHome.onclick=()=>{ S.pauseOffset=0; if(S.playing){ clearScheduled(); ensureAC().then(()=>{ schedulePlaylist(0); S.startTime=S.audio.ctx.currentTime; }); } renderTimeline(); }; E.btnFullscreen.onclick = () => { if (document.fullscreenElement) { document.exitFullscreen?.(); } else { E.canvasWrap.requestFullscreen?.(); } }; E.zoomIn.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec*1.2,20,600); renderTimeline(); }; E.zoomOut.onclick=()=>{ S.timeline.pxPerSec=clamp(S.timeline.pxPerSec/1.2,20,600); renderTimeline(); };
 E.btnDup.onclick=()=>{ const originalScene = current(); if (!originalScene) return; const newScene = JSON.parse(JSON.stringify(originalScene)); newScene.el = originalScene.el; S.scenes.splice(S.sel + 1, 0, newScene); S.sel++; renderTimeline(); updateInspector(); saveState('duplicate scene'); };
 E.btnDelete.onclick=()=>{ if(S.sel<0) return; S.scenes.splice(S.sel,1); S.sel=Math.max(0,S.sel-1); renderTimeline(); updateInspector(); saveState('delete scene'); };
