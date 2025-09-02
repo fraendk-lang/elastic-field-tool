@@ -435,7 +435,7 @@ function renderText(sc, progress) {
     ctx.shadowColor = t.shadowColor; 
     ctx.shadowBlur = t.shadowBlur; 
     
-    // Enhanced animation system
+    // Animation system with configurable duration and strength
     const animDur = t.animDuration || 0.3;
     const animStrength = t.animStrength || 1;
     let alpha = 1;
@@ -445,9 +445,21 @@ function renderText(sc, progress) {
     let yOffset = 0;
     let currentColor = t.color;
     
-    // Animation in effects
+    // Calculate animation progress for in/out
+    let animInProgress = 1;
+    let animOutProgress = 1;
+    
     if (t.animIn !== 'none' && progress < animDur) {
-        const easeProgress = progress / animDur; // Simple linear easing for now
+        animInProgress = progress / animDur;
+    }
+    
+    if (t.animOut !== 'none' && progress > 1 - animDur) {
+        animOutProgress = (1 - progress) / animDur;
+    }
+    
+    // Apply animation in effects
+    if (t.animIn !== 'none' && progress < animDur) {
+        const easeProgress = easeOutQuart(animInProgress);
         
         switch(t.animIn) {
             case 'fade':
@@ -479,7 +491,8 @@ function renderText(sc, progress) {
                 break;
             case 'bounce':
                 alpha = easeProgress;
-                scale = 0.5 + easeProgress * 0.5;
+                const bounceProgress = easeOutBounce(animInProgress);
+                scale = 0.5 + bounceProgress * 0.5;
                 break;
             case 'rotate':
                 alpha = easeProgress;
@@ -493,55 +506,56 @@ function renderText(sc, progress) {
         }
     }
     
-    // Animation out effects
+    // Apply animation out effects
     if (t.animOut !== 'none' && progress > 1 - animDur) {
-        const outProgress = (1 - progress) / animDur;
+        const easeProgress = easeInQuart(animOutProgress);
         
         switch(t.animOut) {
             case 'fade':
-                alpha *= outProgress;
+                alpha *= easeProgress;
                 break;
             case 'slide':
-                alpha *= outProgress;
-                yOffset += (1 - outProgress) * 50 * animStrength;
+                alpha *= easeProgress;
+                yOffset += (1 - easeProgress) * 50 * animStrength;
                 break;
             case 'slide-down':
-                alpha *= outProgress;
-                yOffset -= (1 - outProgress) * 50 * animStrength;
+                alpha *= easeProgress;
+                yOffset -= (1 - easeProgress) * 50 * animStrength;
                 break;
             case 'slide-left':
-                alpha *= outProgress;
-                xOffset += (1 - outProgress) * 100 * animStrength;
+                alpha *= easeProgress;
+                xOffset += (1 - easeProgress) * 100 * animStrength;
                 break;
             case 'slide-right':
-                alpha *= outProgress;
-                xOffset -= (1 - outProgress) * 100 * animStrength;
+                alpha *= easeProgress;
+                xOffset -= (1 - easeProgress) * 100 * animStrength;
                 break;
             case 'zoom':
-                alpha *= outProgress;
-                scale *= outProgress;
+                alpha *= easeProgress;
+                scale *= easeProgress;
                 break;
             case 'zoom-in':
-                alpha *= outProgress;
-                scale *= 1 + (1 - outProgress) * 2 * animStrength;
+                alpha *= easeProgress;
+                scale *= 1 + (1 - easeProgress) * 2 * animStrength;
                 break;
             case 'bounce':
-                alpha *= outProgress;
-                scale *= 0.5 + outProgress * 0.5;
+                alpha *= easeProgress;
+                const bounceProgress = easeOutBounce(1 - animOutProgress);
+                scale *= 0.5 + bounceProgress * 0.5;
                 break;
             case 'rotate':
-                alpha *= outProgress;
-                rotation += (1 - outProgress) * 360 * animStrength;
+                alpha *= easeProgress;
+                rotation += (1 - easeProgress) * 360 * animStrength;
                 break;
             case 'color-shift':
-                alpha *= outProgress;
-                const hue = (1 - outProgress) * 180;
+                alpha *= easeProgress;
+                const hue = (1 - easeProgress) * 180;
                 currentColor = `hsl(${hue}, 100%, 50%)`;
                 break;
         }
     }
     
-    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.globalAlpha = clamp(alpha, 0, 1);
     ctx.fillStyle = currentColor;
     
     const lines = t.text.split('\n');
@@ -578,12 +592,44 @@ function renderText(sc, progress) {
     // Draw text lines
     lines.forEach((line, i) => { 
         const lineY = i * lineHeight;
-        ctx.fillText(line, 0, lineY); 
+        
+        // Adjust x position based on alignment
+        let lineX = 0;
+        if (t.align === 'left') lineX = 0;
+        else if (t.align === 'right') lineX = 0;
+        else lineX = 0; // center is handled by textAlign
+        
+        ctx.fillText(line, lineX, lineY); 
     }); 
     
     ctx.restore();
     ctx.restore(); 
 }
+
+// Easing functions for smooth animations
+function easeOutQuart(t) {
+    return 1 - Math.pow(1 - t, 4);
+}
+
+function easeInQuart(t) {
+    return t * t * t * t;
+}
+
+function easeOutBounce(t) {
+    const n1 = 7.5625;
+    const d1 = 2.75;
+    
+    if (t < 1 / d1) {
+        return n1 * t * t;
+    } else if (t < 2 / d1) {
+        return n1 * (t -= 1.5 / d1) * t + 0.75;
+    } else if (t < 2.5 / d1) {
+        return n1 * (t -= 2.25 / d1) * t + 0.9375;
+    } else {
+        return n1 * (t -= 2.625 / d1) * t + 0.984375;
+    }
+}
+
 function renderTimeline(){ const total=Math.max(td(),audioDur()), W=Math.ceil(total*S.timeline.pxPerSec); E.sceneWrap.style.width=W+'px'; E.grid.width=W; E.wave.width=W; E.grid.height=100; E.sceneBar.innerHTML=''; E.thumbStrip.innerHTML=''; let acc=0; S.scenes.forEach((sc,i)=>{ const div=document.createElement('div'); div.className='scene'; div.style.cssText=`position:absolute;top:112px;height:78px;padding:8px 12px;display:flex;align-items:center;gap:10px;color:#e7f1ff;background:${sc.type==='text'?'#342347':'#1a2a4a'};border:1px solid #2b3c59;border-radius:10px;width:${sc.duration*S.timeline.pxPerSec}px;left:${acc*S.timeline.pxPerSec}px;`; if(i===S.sel) div.style.outline='3px solid var(--acc)'; div.innerHTML=`<span style="pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${sc.name}</span><span class="grip" style="position:absolute;right:0;top:0;bottom:0;width:12px;background:#2c3b4d;cursor:ew-resize;border-radius:0 10px 10px 0"></span>`; div.onclick=()=>{ S.sel=i; if(!S.playing){ S.pauseOffset=S.scenes.slice(0,i).reduce((s,x)=>s+x.duration,0); } renderTimeline(); updateInspector(); }; const grip=div.querySelector('.grip'); let rs=false,x0=0,d0=0; grip.addEventListener('pointerdown',ev=>{ ev.stopPropagation(); rs=true; x0=ev.clientX; d0=sc.duration; grip.setPointerCapture(ev.pointerId); }); grip.addEventListener('pointermove',ev=>{ if(!rs) return; sc.duration=Math.max(0.2, d0+(ev.clientX-x0)/S.timeline.pxPerSec); renderTimeline(); }); grip.addEventListener('pointerup',()=>{ if(rs) saveState('resize clip'); rs=false; }); E.sceneBar.appendChild(div); if(i < S.scenes.length - 1){ const handle = document.createElement('div'); handle.className = 'tr-handle'; handle.style.left = `${(acc + sc.duration) * S.timeline.pxPerSec}px`; handle.textContent = '◆'; const menu = document.createElement('div'); menu.className = 'tr-menu'; Object.keys(Transitions).forEach(k => { const item = document.createElement('div'); item.className='tr-menu-item'; item.textContent=k; item.onclick = (e) => { e.stopPropagation(); sc.tr.type = k; menu.classList.remove('show'); saveState('change transition'); }; menu.appendChild(item); }); handle.appendChild(menu); handle.onclick = (e) => { e.stopPropagation(); document.querySelectorAll('.tr-menu').forEach(m => {if(m!==menu) m.classList.remove('show');}); menu.classList.toggle('show'); }; E.sceneBar.appendChild(handle); } const th=document.createElement('div'); th.className='thumb'; th.style.left=(acc*S.timeline.pxPerSec+6)+'px'; th.style.top='6px'; th.style.width=(Math.max(80, sc.duration*S.timeline.pxPerSec-12))+'px'; const tc=document.createElement('canvas'); tc.width=240; tc.height=135; const tctx=tc.getContext('2d'); if(sc.el){ drawFitted(tctx, sc.el, 240,135, sc.fit, 1, 0); } else { tctx.fillStyle='#000'; tctx.fillRect(0,0,240,135); tctx.fillStyle='#fff'; tctx.font='16px Inter'; tctx.fillText('Text',12,24); } th.appendChild(tc); E.thumbStrip.appendChild(th); acc+=sc.duration; }); drawGrid(); drawWaveform(); updatePlayhead(); E.zoomLabel.textContent=Math.round(S.timeline.pxPerSec)+' px/s'; }
 function drawGrid(){ const g=E.grid.getContext('2d'), w=E.grid.width, h=E.grid.height; g.clearRect(0,0,w,h); g.strokeStyle='rgba(255,255,255,.09)'; g.lineWidth=1; const step=1*S.timeline.pxPerSec; for(let x=0;x<w;x+=step){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); } E.timeAxis.innerHTML=''; for(let t=0;t*S.timeline.pxPerSec<w;t++){ const el=document.createElement('span'); el.textContent=fmt(t).slice(0,5); el.style.cssText=`position:absolute;left:${t*S.timeline.pxPerSec+6}px;top:90px`; E.timeAxis.appendChild(el);} }
 function drawWaveform(){ const cvs=E.wave, g=cvs.getContext('2d'); cvs.height=70; g.clearRect(0,0,cvs.width,cvs.height); const buf=S.audio.mixBuffer; if(!buf) return; const data=buf.getChannelData(0); g.strokeStyle='#fff'; g.lineWidth=1.4; g.beginPath(); const step=Math.ceil(data.length/cvs.width); for(let i=0;i<cvs.width;i++){ let min=1,max=-1; for(let j=0;j<step;j++){ const idx=i*step+j; if(idx>=data.length) break; const d=data[idx]; if(d<min)min=d; if(d>max)max=d;} g.moveTo(i,(1+min)*cvs.height/2); g.lineTo(i,(1+max)*cvs.height/2);} g.stroke(); }
@@ -636,53 +682,63 @@ function updateAutomationTimeline() {
     
     if (!sc) {
         clipInfoEl.textContent = 'Aktueller Clip: -';
-        if (rulerEl) rulerEl.innerHTML = '';
+        rulerEl.innerHTML = '';
         return;
     }
     
-    clipInfoEl.textContent = 'Aktueller Clip: "' + sc.name + '" - Dauer: ' + sc.duration.toFixed(2) + 's';
+    clipInfoEl.textContent = `Aktueller Clip: "${sc.name}" - Dauer: ${sc.duration.toFixed(2)}s`;
     
-    if (rulerEl) {
-        rulerEl.innerHTML = '';
-        const rulerWidth = 400;
-        const duration = sc.duration;
+    // Create timeline ruler with time markers
+    rulerEl.innerHTML = '';
+    const rulerWidth = 400;
+    const duration = sc.duration;
+    
+    // Add time markers every 0.5 seconds or logical intervals
+    const interval = duration <= 2 ? 0.25 : duration <= 10 ? 0.5 : 1;
+    
+    for (let t = 0; t <= duration; t += interval) {
+        const x = (t / duration) * rulerWidth;
+        const marker = document.createElement('div');
+        marker.style.cssText = `
+            position: absolute;
+            left: ${x}px;
+            top: 0;
+            width: 1px;
+            height: 100%;
+            background: rgba(255,255,255,0.3);
+            pointer-events: none;
+        `;
         
-        for (let t = 0; t <= duration; t += 0.5) {
-            const x = (t / duration) * rulerWidth;
-            const marker = document.createElement('div');
-            marker.style.position = 'absolute';
-            marker.style.left = x + 'px';
-            marker.style.top = '0';
-            marker.style.width = '1px';
-            marker.style.height = '100%';
-            marker.style.background = 'rgba(255,255,255,0.3)';
-            marker.style.pointerEvents = 'none';
-            
-            const label = document.createElement('div');
-            label.style.position = 'absolute';
-            label.style.left = (x + 2) + 'px';
-            label.style.top = '2px';
-            label.style.fontSize = '10px';
-            label.style.color = 'rgba(255,255,255,0.7)';
-            label.style.pointerEvents = 'none';
-            label.textContent = t.toFixed(1) + 's';
-            
-            rulerEl.appendChild(marker);
-            if (x + 30 < rulerWidth) {
-                rulerEl.appendChild(label);
-            }
+        const label = document.createElement('div');
+        label.style.cssText = `
+            position: absolute;
+            left: ${x + 2}px;
+            top: 2px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.7);
+            pointer-events: none;
+            white-space: nowrap;
+        `;
+        label.textContent = `${t.toFixed(t < 1 ? 2 : 1)}s`;
+        
+        rulerEl.appendChild(marker);
+        if (x + 30 < rulerWidth) { // Only show label if there's space
+            rulerEl.appendChild(label);
         }
-        
-        const endMarker = document.createElement('div');
-        endMarker.style.position = 'absolute';
-        endMarker.style.right = '0';
-        endMarker.style.top = '0';
-        endMarker.style.width = '2px';
-        endMarker.style.height = '100%';
-        endMarker.style.background = 'var(--acc)';
-        endMarker.style.pointerEvents = 'none';
-        rulerEl.appendChild(endMarker);
     }
+    
+    // Add end marker
+    const endMarker = document.createElement('div');
+    endMarker.style.cssText = `
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 2px;
+        height: 100%;
+        background: var(--acc);
+        pointer-events: none;
+    `;
+    rulerEl.appendChild(endMarker);
 }
 E.addAutomationLane.onclick = () => { createAutomationLane(); saveState('add automation lane'); };
 E.btnSnapshotAuto.onclick = async () => { 
@@ -801,10 +857,78 @@ function captureElementToCanvas(element, format, filename) {
   }
 }
 function createAutomationLane(param = '') { const sc = current(); if (!sc) return; const lane = document.createElement('div'); lane.className = 'automation-lane'; const select = document.createElement('select'); let options = ''; for(const p in PARAM_RANGES) { const [cat, ...nameParts] = p.split('_'); const name = nameParts.join('_').replace(/_/g, ' '); const label = `${cat.toUpperCase()}: ${name || cat}`; options += `<option value="${p}">${label}</option>`; } select.innerHTML = options; select.value = param || Object.keys(PARAM_RANGES)[0]; const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80; const delBtn = document.createElement('button'); delBtn.className = 'btn'; delBtn.textContent = '−'; delBtn.onclick = () => { const p = select.value; if (sc.curves[p]) { delete sc.curves[p]; } lane.remove(); saveState('delete automation lane'); }; lane.append(select, canvas, delBtn); E.automationLanesContainer.appendChild(lane); function redraw() { drawLane(canvas, select.value); } select.onchange = (e) => { const newParam = e.target.value; const oldParam = e.target.dataset.oldParam; if (oldParam && oldParam !== newParam && sc.curves[oldParam]) { if (!sc.curves[newParam] || sc.curves[newParam].length === 0) { sc.curves[newParam] = [...sc.curves[oldParam]]; delete sc.curves[oldParam]; } } e.target.dataset.oldParam = newParam; redraw(); saveState('change automation param'); }; select.dataset.oldParam = select.value; setupAutomationInteraction(canvas, select); redraw(); }
-function drawLane(canvas, param) { const sc=current(); const g=canvas.getContext('2d'), w=canvas.width, h=canvas.height; g.clearRect(0,0,w,h); g.strokeStyle='rgba(255,255,255,.1)'; for(let x=0;x<=w;x+=w/8){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); } for(let y=0;y<=h;y+=h/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); } if(!sc || !param || !PARAM_RANGES[param]) return; sc.curves[param]=sc.curves[param]||[]; const arr=sc.curves[param].slice().sort((a,b)=>a[0]-b[0]); const [mn,mx]=PARAM_RANGES[param]; if(!arr.length){ g.fillStyle='rgba(255,255,255,.45)'; g.font='12px Inter'; g.textAlign='center'; g.fillText('Klicken zum Starten', w/2, h/2); return; } g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc2'); g.lineWidth=2; g.beginPath(); arr.forEach((pt,i)=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); if(i===0) g.moveTo(x,y); else g.lineTo(x,y);}); g.stroke(); arr.forEach(pt=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc'); g.beginPath(); g.arc(x,y,5,0,Math.PI*2); g.fill(); g.strokeStyle='#22314d'; g.stroke(); }); }
+function drawLane(canvas, param) { 
+    const sc=current(); 
+    const g=canvas.getContext('2d'), w=canvas.width, h=canvas.height; 
+    g.clearRect(0,0,w,h); 
+    
+    // Draw grid
+    g.strokeStyle='rgba(255,255,255,.1)'; 
+    for(let x=0;x<=w;x+=w/8){ 
+        g.beginPath(); 
+        g.moveTo(x,0); 
+        g.lineTo(x,h); 
+        g.stroke(); 
+    } 
+    for(let y=0;y<=h;y+=h/4){ 
+        g.beginPath(); 
+        g.moveTo(0,y); 
+        g.lineTo(w,y); 
+        g.stroke(); 
+    } 
+    
+    // Add time labels if we have a current scene
+    if (sc) {
+        g.fillStyle='rgba(255,255,255,.5)';
+        g.font='10px Inter';
+        g.textAlign='center';
+        const duration = sc.duration;
+        for(let i=0; i<=8; i++) {
+            const x = (i/8) * w;
+            const time = (i/8) * duration;
+            g.fillText(`${time.toFixed(1)}s`, x, h-5);
+        }
+    }
+    
+    if(!sc || !param || !PARAM_RANGES[param]) return; 
+    
+    sc.curves[param]=sc.curves[param]||[]; 
+    const arr=sc.curves[param].slice().sort((a,b)=>a[0]-b[0]); 
+    const [mn,mx]=PARAM_RANGES[param]; 
+    
+    if(!arr.length){ 
+        g.fillStyle='rgba(255,255,255,.45)'; 
+        g.font='12px Inter'; 
+        g.textAlign='center'; 
+        g.fillText('Klicken zum Starten', w/2, h/2); 
+        return; 
+    } 
+    
+    // Draw automation curve
+    g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc2'); 
+    g.lineWidth=2; 
+    g.beginPath(); 
+    arr.forEach((pt,i)=>{ 
+        const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); 
+        if(i===0) g.moveTo(x,y); 
+        else g.lineTo(x,y);
+    }); 
+    g.stroke(); 
+    
+    // Draw automation points
+    arr.forEach(pt=>{ 
+        const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); 
+        g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc'); 
+        g.beginPath(); 
+        g.arc(x,y,5,0,Math.PI*2); 
+        g.fill(); 
+        g.strokeStyle='#22314d'; 
+        g.stroke(); 
+    }); 
+}
 function ptToXY(t,v,w,h,mn,mx){ const vN=(v-mn)/(mx-mn||1); return [t*w,(1-vN)*h]; } function xyToPt(x,y,w,h,mn,mx){ const t=clamp(x/w,0,1); const v=mn+(mx-mn)*clamp(1-y/h,0,1); return [t,v]; }
 function setupAutomationInteraction(canvas, select) { let drag={on:false,idx:-1}; function getParam() { return select.value; } function hit(x,y){ const sc=current(); if(!sc) return -1; const p=getParam(); if(!sc.curves[p]) return -1; const arr=sc.curves[p]||[]; const [mn,mx]=PARAM_RANGES[p]; for(let i=0;i<arr.length;i++){ const [tx,v]=arr[i]; const [px,py]=ptToXY(tx,v,canvas.width,canvas.height,mn,mx); if(Math.hypot(px-x,py-y)<10) return i; } return -1; } const endInteraction = () => { if(drag.on) saveState('edit automation'); drag.on=false; }; canvas.addEventListener('dblclick', e=>{ const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const idx=hit(x,y); if(idx>=0){ sc.curves[p].splice(idx,1); drawLane(canvas, p); saveState('delete automation point'); } }); canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); sc.curves[p]=sc.curves[p]||[]; const idx=hit(x,y); if(idx>=0){ drag={on:true,idx}; } else { const [mn,mx]=PARAM_RANGES[p]; const pt=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].push(pt); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag={on:true,idx:sc.curves[p].indexOf(pt)}; drawLane(canvas, p); } }); canvas.addEventListener('pointermove', e=>{ if(!drag.on) return; const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const [mn,mx]=PARAM_RANGES[p]; sc.curves[p][drag.idx]=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag.idx=sc.curves[p].findIndex(pt => pt[0] === xyToPt(x,y,canvas.width,canvas.height,mn,mx)[0]); drawLane(canvas, p); }); canvas.addEventListener('pointerup', endInteraction); canvas.addEventListener('pointercancel', endInteraction); }
-document.querySelector('aside.card').addEventListener('input', e=>{ const id=e.target.id; if (!id) return; const isC=e.target.type==='checkbox'; const val=isC?e.target.checked:(e.target.type==='number'?+e.target.value:e.target.value); const [p1,p2,p3] = id.split('_'); if (p1 === 'master') { S.master[p2] = +val; return; } const sc=current(); if(!sc) return; if (p1 === 'fx' && p2 === 'react') { if(!sc.fx.react) sc.fx.react={}; sc.fx.react[p3] = val; } else if(sc[p1] && typeof sc[p1]==='object' && sc[p1][p2] !== undefined){ sc[p1][p2]=val; ['kb','tx'].forEach(prefix => { if (p1 === prefix && p2 === 'on') sc[prefix].on = !!val; }); } else if(id==='inDur'){ sc.duration=Math.max(0.05, +val||0.05); renderTimeline(); } saveState('inspector input'); });
+document.querySelector('aside.card').addEventListener('input', e=>{ const id=e.target.id; if (!id) return; const isC=e.target.type==='checkbox'; const val=isC?e.target.checked:(e.target.type==='number'?+e.target.value:e.target.value); const [p1,p2,p3] = id.split('_'); if (p1 === 'master') { S.master[p2] = +val; return; } const sc=current(); if(!sc) return; if (p1 === 'fx' && p2 === 'react') { if(!sc.fx.react) sc.fx.react={}; sc.fx.react[p3] = val; } else if(sc[p1] && typeof sc[p1]==='object' && sc[p1][p2] !== undefined){ sc[p1][p2]=val; ['kb','tx'].forEach(prefix => { if (p1 === prefix && p2 === 'on') sc[prefix].on = !!val; }); } else if(id==='inDur'){ sc.duration=Math.max(0.05, +val||0.05); renderTimeline(); updateAutomationTimeline(); // Update automation timeline when duration changes } saveState('inspector input'); });
 E.btnExport.onclick = async ()=>{ const duration=endDur(); if(duration<=0.01){ log('Nichts zu exportieren.'); return; } await ensureAC(); const dest=S.audio.ctx.createMediaStreamDestination(); S.audio.gain.connect(dest); const canvasStream=E.view.captureStream(30); const tracks=[...canvasStream.getVideoTracks()]; const aTr=dest.stream.getAudioTracks()[0]; if(aTr) tracks.push(aTr); const mixed=new MediaStream(tracks); const mime = (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') && 'video/webm;codecs=vp9,opus') || (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') && 'video/webm;codecs=vp8,opus') || 'video/webm'; const rec=new MediaRecorder(mixed,{mimeType:mime, videoBitsPerSecond:8_000_000, audioBitsPerSecond:192_000}); const chunks=[]; rec.ondataavailable=e=>{ if(e.data?.size) chunks.push(e.data); }; rec.onstop=()=>{ const blob=new Blob(chunks,{type:mime}); downloadBlob(`efc-${Date.now()}.webm`, blob); document.getElementById('expProg').style.width='0%'; pause(); S.pauseOffset=duration; }; S.pauseOffset=0; renderTimeline(); schedulePlaylist(0); S.playing=true; S.startTime=S.audio.ctx.currentTime; const prog=document.getElementById('expProg'); const iv=setInterval(()=>{ const t=clamp(getT()/duration,0,1); prog.style.width=(t*100).toFixed(1)+'%'; },100); rec.start(100); setTimeout(()=>{ try{rec.stop()}catch{} clearInterval(iv); }, (duration+0.25)*1000); };
 function downloadBlob(name, blob){ const url=URL.createObjectURL(blob); E.dl.href=url; E.dl.download=name; E.dl.click(); setTimeout(()=>URL.revokeObjectURL(url),1e4); }
 E.btnSave.onclick = () => { const project = { scenes: S.scenes.map(s => { const { el, ...sceneData } = s; return sceneData; }), media: S.media.map(m => { const { el, ...mediaData } = m; return mediaData; }), master: S.master, timeline: S.timeline, midi: S.midi.mappings }; const blob = new Blob([JSON.stringify(project, null, 2)], {type: 'application/json'}); downloadBlob('efc-project.json', blob); log('Projekt gespeichert.'); };
