@@ -93,9 +93,203 @@ input[type="number"]{width:110px}
 .media-thumb:hover{border-color:var(--acc)}
 .media-thumb img,.media-thumb video{width:100%;height:100%;object-fit:cover}
 .media-thumb .name{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.7);color:#fff;font-size:12px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.automation-lane{display:flex;gap:12px;align-items:center;margin-bottom:12px}
-.automation-lane canvas{background:#0b1220;border:1px solid #2a4371;border-radius:12px}
-.automation-lane select{flex:1}
+/* Automation Panel Improvements */
+.automation-section {
+  background: rgba(12,18,30,.3);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.automation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.1);
+}
+
+.automation-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--acc2), var(--acc));
+  border: none;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(123,226,255,0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(123,226,255,0.4);
+}
+
+.automation-lanes-wrapper {
+  min-height: 120px;
+}
+
+.automation-lane {
+  background: rgba(20,33,61,.6);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.automation-lane:hover {
+  border-color: rgba(123,226,255,0.3);
+  background: rgba(20,33,61,.8);
+}
+
+.automation-lane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.automation-lane select {
+  flex: 1;
+  font-weight: 500;
+}
+
+.automation-lane canvas {
+  background: linear-gradient(135deg, #0b1220, #0a0f1b);
+  border: 1px solid #2a4371;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.automation-timeline-section {
+  background: rgba(15,25,45,.4);
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.timeline-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeline-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--acc4);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.automation-help-section {
+  background: rgba(8,15,25,.5);
+  border: 1px solid rgba(255,255,255,.05);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.help-details {
+  padding: 0;
+}
+
+.help-details summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--muted);
+  background: rgba(255,255,255,.02);
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.help-details summary:hover {
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+}
+
+.help-content {
+  padding: 16px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+
+.help-item {
+  padding: 8px 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.help-item strong {
+  color: var(--text);
+  margin-right: 8px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.empty-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.empty-subtitle {
+  font-size: 0.9rem;
+}
+
 #canvasWrap:fullscreen #hud,
 #canvasWrap:fullscreen #diag { display: none; }
 .btn.small-btn{padding:6px 8px;font-size:1.2rem;line-height:1}
@@ -259,9 +453,55 @@ input[type="number"]{width:110px}
       </div>
 
       <div class="tabpanel" id="tab_auto">
-        <div id="automationLanesContainer"></div>
-        <button id="addAutomationLane" class="btn">+ Automation hinzufügen</button>
-        <div class="mini">Klick = Punkt, Ziehen = bewegen, Doppelklick = löschen.</div>
+        <!-- Main Automation Controls Section -->
+        <div class="automation-section">
+          <div class="automation-header">
+            <h3>🎛️ Automation Spuren</h3>
+            <button id="addAutomationLane" class="btn btn-primary">+ Spur hinzufügen</button>
+          </div>
+          <div class="automation-lanes-wrapper">
+            <div id="automationLanesContainer"></div>
+            <div class="automation-empty" id="automationEmpty" style="display: none;">
+              <div class="empty-state">
+                <div class="empty-icon">📈</div>
+                <div class="empty-title">Keine Automation Spuren</div>
+                <div class="empty-subtitle">Klicke auf "Spur hinzufügen" um zu beginnen</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline Integration Section -->
+        <div class="automation-timeline-section">
+          <div class="timeline-header">
+            <h4>📊 Timeline Integration</h4>
+            <div class="timeline-status">
+              <span class="status-dot"></span>
+              <span class="status-text">Timeline verbunden</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Help & Instructions Section -->
+        <div class="automation-help-section">
+          <details class="help-details">
+            <summary>💡 Bedienungsanleitung</summary>
+            <div class="help-content">
+              <div class="help-item">
+                <strong>Punkt hinzufügen:</strong> Einfach auf die Kurve klicken
+              </div>
+              <div class="help-item">
+                <strong>Punkt bewegen:</strong> Punkt anklicken und ziehen
+              </div>
+              <div class="help-item">
+                <strong>Punkt löschen:</strong> Doppelklick auf den Punkt
+              </div>
+              <div class="help-item">
+                <strong>Parameter ändern:</strong> Dropdown-Menü über der Kurve
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
 
       <div class="tabpanel" id="tab_text">
@@ -400,9 +640,11 @@ E.btnNewText.onclick=()=>{ S.scenes.push(makeScene('Text','text',null,'')); S.se
 E.btnDemo.onclick=()=>{ S.scenes=[makeScene('Rot','image',mkColor(255,60,60),'#'), makeScene('Grün','image',mkColor(60,200,100),'#'), makeScene('Blau','image',mkColor(60,120,255),'#')]; S.media = []; S.scenes.forEach(sc=>S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url})); S.sel=0; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('load demo'); };
 function mkColor(r,g,b){ const c=document.createElement('canvas'); c.width=1920; c.height=1080; const g2=c.getContext('2d'); const grd=g2.createLinearGradient(0,0,1920,1080); grd.addColorStop(0,`rgb(${r},${g},${b})`); grd.addColorStop(1,'#000'); g2.fillStyle=grd; g2.fillRect(0,0,1920,1080); const img=new Image(); img.src=c.toDataURL(); return img; }
 function updateInspector(){ const sc=current(); const inspector = document.querySelector('aside.card'); inspector.style.display = sc ? '' : 'none'; if(!sc) return; ['fx','kb','tr','fit','tx'].forEach(cat=>{ if(sc[cat]) for(const k in sc[cat]) { const el = E[`${cat}_${k}`]; if(el){ if(el.type==='checkbox') el.checked = sc[cat][k]; else el.value=sc[cat][k]; } } }); if(sc.fx.react){ for(const k in sc.fx.react){ const el=E['fx_react_'+k]; if(el){ if(el.type==='checkbox') el.checked=sc.fx.react[k]; else el.value=sc.fx.react[k]; }}} E.inDur.value=sc.duration; ['glow','ca','grain','fadeIn','fadeOut'].forEach(k=> {if(E[`master_${k}`]) E[`master_${k}`].value = S.master[k]}); buildAutomationLanes(); }
-function buildAutomationLanes() { const sc = current(); const container = E.automationLanesContainer; container.innerHTML = ''; if (!sc) return; sc.curves = sc.curves || {}; for (const param in sc.curves) { if (sc.curves[param] && sc.curves[param].length > 0) { createAutomationLane(param); } } }
+function buildAutomationLanes() { const sc = current(); const container = E.automationLanesContainer; container.innerHTML = ''; if (!sc) { updateEmptyState(); return; } sc.curves = sc.curves || {}; for (const param in sc.curves) { if (sc.curves[param] && sc.curves[param].length > 0) { createAutomationLane(param); } } updateEmptyState(); }
 E.addAutomationLane.onclick = () => { createAutomationLane(); saveState('add automation lane'); };
-function createAutomationLane(param = '') { const sc = current(); if (!sc) return; const lane = document.createElement('div'); lane.className = 'automation-lane'; const select = document.createElement('select'); let options = ''; for(const p in PARAM_RANGES) { const [cat, ...nameParts] = p.split('_'); const name = nameParts.join('_').replace(/_/g, ' '); const label = `${cat.toUpperCase()}: ${name || cat}`; options += `<option value="${p}">${label}</option>`; } select.innerHTML = options; select.value = param || Object.keys(PARAM_RANGES)[0]; const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80; const delBtn = document.createElement('button'); delBtn.className = 'btn'; delBtn.textContent = '−'; delBtn.onclick = () => { const p = select.value; if (sc.curves[p]) { delete sc.curves[p]; } lane.remove(); saveState('delete automation lane'); }; lane.append(select, canvas, delBtn); E.automationLanesContainer.appendChild(lane); function redraw() { drawLane(canvas, select.value); } select.onchange = (e) => { const newParam = e.target.value; const oldParam = e.target.dataset.oldParam; if (oldParam && oldParam !== newParam && sc.curves[oldParam]) { if (!sc.curves[newParam] || sc.curves[newParam].length === 0) { sc.curves[newParam] = [...sc.curves[oldParam]]; delete sc.curves[oldParam]; } } e.target.dataset.oldParam = newParam; redraw(); saveState('change automation param'); }; select.dataset.oldParam = select.value; setupAutomationInteraction(canvas, select); redraw(); }
+function createAutomationLane(param = '') { const sc = current(); if (!sc) return; const lane = document.createElement('div'); lane.className = 'automation-lane'; const laneHeader = document.createElement('div'); laneHeader.className = 'automation-lane-header'; const select = document.createElement('select'); let options = ''; for(const p in PARAM_RANGES) { const [cat, ...nameParts] = p.split('_'); const name = nameParts.join('_').replace(/_/g, ' '); const label = `${cat.toUpperCase()}: ${name || cat}`; options += `<option value="${p}">${label}</option>`; } select.innerHTML = options; select.value = param || Object.keys(PARAM_RANGES)[0]; const delBtn = document.createElement('button'); delBtn.className = 'btn'; delBtn.textContent = '🗑️'; delBtn.title = 'Automation Spur löschen'; delBtn.style.minWidth = '40px'; delBtn.onclick = () => { const p = select.value; if (sc.curves[p]) { delete sc.curves[p]; } lane.remove(); updateEmptyState(); saveState('delete automation lane'); }; laneHeader.append(select, delBtn); const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80; lane.append(laneHeader, canvas); E.automationLanesContainer.appendChild(lane); updateEmptyState(); function redraw() { drawLane(canvas, select.value); } select.onchange = (e) => { const newParam = e.target.value; const oldParam = e.target.dataset.oldParam; if (oldParam && oldParam !== newParam && sc.curves[oldParam]) { if (!sc.curves[newParam] || sc.curves[newParam].length === 0) { sc.curves[newParam] = [...sc.curves[oldParam]]; delete sc.curves[oldParam]; } } e.target.dataset.oldParam = newParam; redraw(); saveState('change automation param'); }; select.dataset.oldParam = select.value; setupAutomationInteraction(canvas, select); redraw(); }
+
+function updateEmptyState() { const container = E.automationLanesContainer; const emptyState = document.getElementById('automationEmpty'); const hasLanes = container.children.length > 0; emptyState.style.display = hasLanes ? 'none' : 'block'; }
 function drawLane(canvas, param) { const sc=current(); const g=canvas.getContext('2d'), w=canvas.width, h=canvas.height; g.clearRect(0,0,w,h); g.strokeStyle='rgba(255,255,255,.1)'; for(let x=0;x<=w;x+=w/8){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); } for(let y=0;y<=h;y+=h/4){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); } if(!sc || !param || !PARAM_RANGES[param]) return; sc.curves[param]=sc.curves[param]||[]; const arr=sc.curves[param].slice().sort((a,b)=>a[0]-b[0]); const [mn,mx]=PARAM_RANGES[param]; if(!arr.length){ g.fillStyle='rgba(255,255,255,.45)'; g.font='12px Inter'; g.textAlign='center'; g.fillText('Klicken zum Starten', w/2, h/2); return; } g.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc2'); g.lineWidth=2; g.beginPath(); arr.forEach((pt,i)=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); if(i===0) g.moveTo(x,y); else g.lineTo(x,y);}); g.stroke(); arr.forEach(pt=>{ const [x,y]=ptToXY(pt[0],pt[1],w,h,mn,mx); g.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--acc'); g.beginPath(); g.arc(x,y,5,0,Math.PI*2); g.fill(); g.strokeStyle='#22314d'; g.stroke(); }); }
 function ptToXY(t,v,w,h,mn,mx){ const vN=(v-mn)/(mx-mn||1); return [t*w,(1-vN)*h]; } function xyToPt(x,y,w,h,mn,mx){ const t=clamp(x/w,0,1); const v=mn+(mx-mn)*clamp(1-y/h,0,1); return [t,v]; }
 function setupAutomationInteraction(canvas, select) { let drag={on:false,idx:-1}; function getParam() { return select.value; } function hit(x,y){ const sc=current(); if(!sc) return -1; const p=getParam(); if(!sc.curves[p]) return -1; const arr=sc.curves[p]||[]; const [mn,mx]=PARAM_RANGES[p]; for(let i=0;i<arr.length;i++){ const [tx,v]=arr[i]; const [px,py]=ptToXY(tx,v,canvas.width,canvas.height,mn,mx); if(Math.hypot(px-x,py-y)<10) return i; } return -1; } const endInteraction = () => { if(drag.on) saveState('edit automation'); drag.on=false; }; canvas.addEventListener('dblclick', e=>{ const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const idx=hit(x,y); if(idx>=0){ sc.curves[p].splice(idx,1); drawLane(canvas, p); saveState('delete automation point'); } }); canvas.addEventListener('pointerdown', e=>{ canvas.setPointerCapture(e.pointerId); const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); sc.curves[p]=sc.curves[p]||[]; const idx=hit(x,y); if(idx>=0){ drag={on:true,idx}; } else { const [mn,mx]=PARAM_RANGES[p]; const pt=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].push(pt); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag={on:true,idx:sc.curves[p].indexOf(pt)}; drawLane(canvas, p); } }); canvas.addEventListener('pointermove', e=>{ if(!drag.on) return; const r=canvas.getBoundingClientRect(), x=e.clientX-r.left, y=e.clientY-r.top; const sc=current(); if(!sc) return; const p=getParam(); if(!sc.curves[p]) return; const [mn,mx]=PARAM_RANGES[p]; sc.curves[p][drag.idx]=xyToPt(x,y,canvas.width,canvas.height,mn,mx); sc.curves[p].sort((a,b)=>a[0]-b[0]); drag.idx=sc.curves[p].findIndex(pt => pt[0] === xyToPt(x,y,canvas.width,canvas.height,mn,mx)[0]); drawLane(canvas, p); }); canvas.addEventListener('pointerup', endInteraction); canvas.addEventListener('pointercancel', endInteraction); }
