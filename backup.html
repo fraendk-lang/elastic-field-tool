@@ -268,7 +268,7 @@ input[type="number"]{width:110px}
         <div id="automationLanesContainer"></div>
         <button id="addAutomationLane" class="btn">+ Automation hinzufügen</button>
         <div class="row">
-          <button id="btnSnapshotAuto" class="btn">📸 Snapshot als Bild speichern</button>
+          <button id="btnSnapshotAuto" class="btn">📸 Leinwand als Bild speichern</button>
           <select id="snapshotFormat" style="width:auto;">
             <option value="png">PNG</option>
             <option value="jpeg">JPEG</option>
@@ -638,7 +638,7 @@ E.playArea.addEventListener('click', (e)=>{ const r=E.sceneWrap.getBoundingClien
 document.body.addEventListener('click', () => document.querySelectorAll('.tr-menu').forEach(m => m.classList.remove('show')));
 function loop(ts){ if(S.playing){ S.pauseOffset=getT(); if(S.pauseOffset>=endDur()) pause(); } let audioSignal = 0; if(S.audio.analyser){ S.audio.analyser.getByteFrequencyData(S.audio.analyserBuffer); audioSignal = S.audio.analyserBuffer.reduce((s,v)=>s+v,0) / S.audio.analyserBuffer.length / 255; } const T=S.pauseOffset; let acc=0, active=null, p=0, idx=-1, trans=false; for(let i=0;i<S.scenes.length;i++){ const sc=S.scenes[i]; if(T>=acc && T<acc+sc.duration){ active=sc; idx=i; p=(T-acc)/sc.duration; const next=S.scenes[i+1]; const left=sc.duration-(T-acc); if(next && sc.tr.type!=='none' && left<sc.tr.dur){ trans=true; const tp=clamp(1-(left/sc.tr.dur),0,1); const drawA=()=>renderScene(sc,p,audioSignal); const drawB=()=>renderScene(next,0,audioSignal); (Transitions[sc.tr.type]||Transitions.none)(tp,drawA,drawB);} break; } acc+=sc.duration; } if(!trans && active) renderScene(active,p,audioSignal); else if(!active && S.scenes.length) renderScene(S.scenes.at(-1),1,audioSignal); ctx.save(); if(S.master.glow > 0){ ctx.filter = `blur(${S.master.glow*8}px) brightness(1.2)`; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(E.view, 0, 0); } if(S.master.ca > 0){ ctx.globalCompositeOperation = 'lighter'; ctx.filter = `blur(${S.master.ca*0.2}px)`; ctx.drawImage(E.view,-S.master.ca,0); ctx.drawImage(E.view,S.master.ca,0); } ctx.restore(); if(S.master.grain > 0){ ctx.save(); ctx.globalAlpha = S.master.grain; const noise = (()=>{ const c=document.createElement('canvas'),g=c.getContext('2d'),d=g.createImageData(100,100),b=new Uint32Array(d.data.buffer); for(let i=0;i<b.length;i++)b[i]=(Math.random()*255|0)<<24; g.putImageData(d,0,0); return c; })(); ctx.fillStyle = ctx.createPattern(noise, 'repeat'); ctx.fillRect(0,0,S.width,S.height); ctx.restore(); } const totalDur = endDur(); let fadeAlpha = 0; if (S.master.fadeIn > 0 && T < S.master.fadeIn) fadeAlpha = 1 - T / S.master.fadeIn; if (S.master.fadeOut > 0 && T > totalDur - S.master.fadeOut) fadeAlpha = (T - (totalDur - S.master.fadeOut)) / S.master.fadeOut; if (fadeAlpha > 0) { ctx.fillStyle = `rgba(0,0,0,${clamp(fadeAlpha,0,1)})`; ctx.fillRect(0,0,S.width,S.height); } E.hud.textContent = `${S.playing?'PLAY':'PAUSE'} · ${fmt(T)} · ${(idx > -1 ? S.scenes[idx].name : '—')}`; updatePlayhead(); requestAnimationFrame(loop); }
 function play(){ ensureAC().then(()=>{ if(S.playing) return; S.playing=true; S.startTime=S.audio.ctx.currentTime - S.pauseOffset; if(S.audio.buffers.length) schedulePlaylist(S.pauseOffset); }); }
-function captureCanvasSnapshot() {
+function captureCanvasSnapshot(format = 'png') {
   try {
     // Create timestamp in the required format
     const now = new Date();
@@ -648,9 +648,9 @@ function captureCanvasSnapshot() {
     const hour = String(now.getHours()).padStart(2, '0');
     const minute = String(now.getMinutes()).padStart(2, '0');
     const second = String(now.getSeconds()).padStart(2, '0');
-    const filename = `snapshot-${year}-${month}-${day}-${hour}-${minute}-${second}.png`;
+    const filename = `canvas-snapshot-${year}-${month}-${day}-${hour}-${minute}-${second}.${format}`;
     
-    // Capture the canvas as PNG
+    // Capture the canvas with specified format
     E.view.toBlob(blob => {
       if (blob) {
         downloadBlob(filename, blob);
@@ -658,7 +658,7 @@ function captureCanvasSnapshot() {
       } else {
         log('Fehler beim Erstellen des Canvas-Snapshots.');
       }
-    }, 'image/png');
+    }, format === 'jpeg' ? 'image/jpeg' : 'image/png', 0.9);
     
   } catch (err) {
     log('Fehler beim Canvas-Snapshot: ' + err.message);
@@ -741,47 +741,13 @@ function updateAutomationTimeline() {
     rulerEl.appendChild(endMarker);
 }
 E.addAutomationLane.onclick = () => { createAutomationLane(); saveState('add automation lane'); };
-E.btnSnapshotAuto.onclick = async () => { 
-  try {
-    const panel = document.getElementById('tab_auto');
-    if (!panel) {
-      log('Automation Panel nicht gefunden.');
-      return;
-    }
-    
-    const format = E.snapshotFormat.value;
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = `automation-panel-${timestamp}.${format}`;
-    
-    log('Erstelle Snapshot...');
-    
-    // Fallback: Use browser screenshot API if available, or show fallback message
-    if (typeof html2canvas !== 'undefined') {
-      const canvas = await html2canvas(panel, {
-        backgroundColor: '#060a12',
-        useCORS: true,
-        allowTaint: true,
-        scale: 1
-      });
-      
-      canvas.toBlob(blob => {
-        if (blob) {
-          downloadBlob(filename, blob);
-          log('Automation Panel Snapshot gespeichert: ' + filename);
-        } else {
-          log('Fehler beim Erstellen des Snapshots.');
-        }
-      }, format === 'jpeg' ? 'image/jpeg' : 'image/png', 0.9);
-    } else {
-      // Native fallback using dom-to-image-like approach
-      captureElementToCanvas(panel, format, filename);
-    }
-    
-  } catch (err) {
-    log('Fehler beim Snapshot: ' + err.message);
-  }
+E.btnSnapshotAuto.onclick = () => {
+  const format = E.snapshotFormat.value;
+  captureCanvasSnapshot(format);
 };
 
+// Automation panel snapshot functionality removed - button now captures main canvas instead
+/*
 function captureElementToCanvas(element, format, filename) {
   try {
     // Get element dimensions and position
@@ -856,6 +822,7 @@ function captureElementToCanvas(element, format, filename) {
     log('Fehler beim nativen Snapshot: ' + err.message);
   }
 }
+*/
 function createAutomationLane(param = '') { const sc = current(); if (!sc) return; const lane = document.createElement('div'); lane.className = 'automation-lane'; const select = document.createElement('select'); let options = ''; for(const p in PARAM_RANGES) { const [cat, ...nameParts] = p.split('_'); const name = nameParts.join('_').replace(/_/g, ' '); const label = `${cat.toUpperCase()}: ${name || cat}`; options += `<option value="${p}">${label}</option>`; } select.innerHTML = options; select.value = param || Object.keys(PARAM_RANGES)[0]; const canvas = document.createElement('canvas'); canvas.width = 400; canvas.height = 80; const delBtn = document.createElement('button'); delBtn.className = 'btn'; delBtn.textContent = '−'; delBtn.onclick = () => { const p = select.value; if (sc.curves[p]) { delete sc.curves[p]; } lane.remove(); saveState('delete automation lane'); }; lane.append(select, canvas, delBtn); E.automationLanesContainer.appendChild(lane); function redraw() { drawLane(canvas, select.value); } select.onchange = (e) => { const newParam = e.target.value; const oldParam = e.target.dataset.oldParam; if (oldParam && oldParam !== newParam && sc.curves[oldParam]) { if (!sc.curves[newParam] || sc.curves[newParam].length === 0) { sc.curves[newParam] = [...sc.curves[oldParam]]; delete sc.curves[oldParam]; } } e.target.dataset.oldParam = newParam; redraw(); saveState('change automation param'); }; select.dataset.oldParam = select.value; setupAutomationInteraction(canvas, select); redraw(); }
 function drawLane(canvas, param) { 
     const sc=current(); 
