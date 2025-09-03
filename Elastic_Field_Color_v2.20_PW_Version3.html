@@ -176,6 +176,15 @@ input[type="number"]{width:110px}
         <button id="btnDelete" class="btn">Löschen</button>
         <button id="btnDemo" class="btn">Demo-Szenen</button>
       </div>
+      <div class="row" style="gap:8px;flex-wrap:wrap;">
+        <label style="font-size:0.9rem;color:var(--muted);width:100%;">Farbszenen:</label>
+        <button id="btnColorRed" class="btn small-btn" style="background:#ff4444;border-color:#ff6666;">🔴 Rot</button>
+        <button id="btnColorGreen" class="btn small-btn" style="background:#44ff44;border-color:#66ff66;color:#000;">🟢 Grün</button>
+        <button id="btnColorBlue" class="btn small-btn" style="background:#4444ff;border-color:#6666ff;">🔵 Blau</button>
+        <button id="btnColorYellow" class="btn small-btn" style="background:#ffff44;border-color:#ffff66;color:#000;">🟡 Gelb</button>
+        <button id="btnColorWhite" class="btn small-btn" style="background:#ffffff;border-color:#cccccc;color:#000;">⚪ Weiß</button>
+        <button id="btnColorBlack" class="btn small-btn" style="background:#222222;border-color:#444444;">⚫ Schwarz</button>
+      </div>
     </div>
   </section>
 
@@ -287,6 +296,15 @@ input[type="number"]{width:110px}
         <div class="grid-2">
           <div class="row"><label>Farbe</label><input id="tx_color" type="color" value="#ffffff"></div>
           <div class="row"><label>Größe</label><input id="tx_size" type="number" value="72"></div>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;">
+          <label style="font-size:0.9rem;color:var(--muted);width:100%;">Schnellauswahl:</label>
+          <button id="txColorRed" class="btn small-btn" style="background:#ff4444;border-color:#ff6666;padding:4px 8px;" title="Rot">🔴</button>
+          <button id="txColorGreen" class="btn small-btn" style="background:#44ff44;border-color:#66ff66;color:#000;padding:4px 8px;" title="Grün">🟢</button>
+          <button id="txColorBlue" class="btn small-btn" style="background:#4444ff;border-color:#6666ff;padding:4px 8px;" title="Blau">🔵</button>
+          <button id="txColorYellow" class="btn small-btn" style="background:#ffff44;border-color:#ffff66;color:#000;padding:4px 8px;" title="Gelb">🟡</button>
+          <button id="txColorWhite" class="btn small-btn" style="background:#ffffff;border-color:#cccccc;color:#000;padding:4px 8px;" title="Weiß">⚪</button>
+          <button id="txColorBlack" class="btn small-btn" style="background:#222222;border-color:#444444;padding:4px 8px;" title="Schwarz">⚫</button>
         </div>
         <div class="grid-2">
           <div class="row"><label>Position X%</label><input id="tx_x" type="number" value="50"></div>
@@ -666,7 +684,21 @@ E.btnPlay.onclick=play; E.btnPause.onclick=pause; E.btnStop.onclick=()=>{ S.play
 E.btnDup.onclick=()=>{ const originalScene = current(); if (!originalScene) return; const newScene = JSON.parse(JSON.stringify(originalScene)); newScene.el = originalScene.el; S.scenes.splice(S.sel + 1, 0, newScene); S.sel++; renderTimeline(); updateInspector(); saveState('duplicate scene'); };
 E.btnDelete.onclick=()=>{ if(S.sel<0) return; S.scenes.splice(S.sel,1); S.sel=Math.max(0,S.sel-1); renderTimeline(); updateInspector(); saveState('delete scene'); };
 E.btnNewText.onclick=()=>{ S.scenes.push(makeScene('Text','text',null,'')); S.sel=S.scenes.length-1; renderTimeline(); updateInspector(); saveState('new text scene'); };
-E.btnDemo.onclick=()=>{ S.scenes=[makeScene('Rot','image',mkColor(255,60,60),'#'), makeScene('Grün','image',mkColor(60,200,100),'#'), makeScene('Blau','image',mkColor(60,120,255),'#')]; S.media = []; S.scenes.forEach(sc=>S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url})); S.sel=0; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('load demo'); };
+E.btnDemo.onclick=()=>{ S.scenes=[makeScene('Rot','image',mkColor(255,0,0),'#'), makeScene('Grün','image',mkColor(0,255,0),'#'), makeScene('Blau','image',mkColor(0,0,255),'#'), makeScene('Gelb','image',mkColor(255,255,0),'#'), makeScene('Weiß','image',mkColor(255,255,255),'#'), makeScene('Schwarz','image',mkColor(0,0,0),'#')]; S.media = []; S.scenes.forEach(sc=>S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url})); S.sel=0; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('load demo'); };
+// Quick color scene creation buttons
+E.btnColorRed.onclick=()=>{ const sc=makeScene('Rot','image',mkColor(255,0,0),'#'); S.scenes.push(sc); S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url}); S.sel=S.scenes.length-1; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('add red scene'); };
+E.btnColorGreen.onclick=()=>{ const sc=makeScene('Grün','image',mkColor(0,255,0),'#'); S.scenes.push(sc); S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url}); S.sel=S.scenes.length-1; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('add green scene'); };
+E.btnColorBlue.onclick=()=>{ const sc=makeScene('Blau','image',mkColor(0,0,255),'#'); S.scenes.push(sc); S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url}); S.sel=S.scenes.length-1; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('add blue scene'); };
+E.btnColorYellow.onclick=()=>{ const sc=makeScene('Gelb','image',mkColor(255,255,0),'#'); S.scenes.push(sc); S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url}); S.sel=S.scenes.length-1; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('add yellow scene'); };
+E.btnColorWhite.onclick=()=>{ const sc=makeScene('Weiß','image',mkColor(255,255,255),'#'); S.scenes.push(sc); S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url}); S.sel=S.scenes.length-1; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('add white scene'); };
+E.btnColorBlack.onclick=()=>{ const sc=makeScene('Schwarz','image',mkColor(0,0,0),'#'); S.scenes.push(sc); S.media.push({name:sc.name, type:sc.type, el:sc.el, url:sc.url}); S.sel=S.scenes.length-1; buildMediaGrid(); renderTimeline(); updateInspector(); saveState('add black scene'); };
+// Text color palette buttons
+E.txColorRed.onclick=()=>{ E.tx_color.value='#ff0000'; const sc=current(); if(sc) { sc.tx.color='#ff0000'; updateInspector(); saveState('set text color red'); } };
+E.txColorGreen.onclick=()=>{ E.tx_color.value='#00ff00'; const sc=current(); if(sc) { sc.tx.color='#00ff00'; updateInspector(); saveState('set text color green'); } };
+E.txColorBlue.onclick=()=>{ E.tx_color.value='#0000ff'; const sc=current(); if(sc) { sc.tx.color='#0000ff'; updateInspector(); saveState('set text color blue'); } };
+E.txColorYellow.onclick=()=>{ E.tx_color.value='#ffff00'; const sc=current(); if(sc) { sc.tx.color='#ffff00'; updateInspector(); saveState('set text color yellow'); } };
+E.txColorWhite.onclick=()=>{ E.tx_color.value='#ffffff'; const sc=current(); if(sc) { sc.tx.color='#ffffff'; updateInspector(); saveState('set text color white'); } };
+E.txColorBlack.onclick=()=>{ E.tx_color.value='#000000'; const sc=current(); if(sc) { sc.tx.color='#000000'; updateInspector(); saveState('set text color black'); } };
 function mkColor(r,g,b){ const c=document.createElement('canvas'); c.width=1920; c.height=1080; const g2=c.getContext('2d'); const grd=g2.createLinearGradient(0,0,1920,1080); grd.addColorStop(0,`rgb(${r},${g},${b})`); grd.addColorStop(1,'#000'); g2.fillStyle=grd; g2.fillRect(0,0,1920,1080); const img=new Image(); img.src=c.toDataURL(); return img; }
 function updateInspector(){ const sc=current(); const inspector = document.querySelector('aside.card'); inspector.style.display = sc ? '' : 'none'; if(!sc) return; ['fx','kb','tr','fit','tx'].forEach(cat=>{ if(sc[cat]) for(const k in sc[cat]) { const el = E[`${cat}_${k}`]; if(el){ if(el.type==='checkbox') el.checked = sc[cat][k]; else el.value=sc[cat][k]; } } }); if(sc.fx.react){ for(const k in sc.fx.react){ const el=E['fx_react_'+k]; if(el){ if(el.type==='checkbox') el.checked=sc.fx.react[k]; else el.value=sc.fx.react[k]; }}} E.inDur.value=sc.duration; if(E.loop) E.loop.checked = sc.loop || false; ['glow','ca','grain','fadeIn','fadeOut'].forEach(k=> {if(E[`master_${k}`]) E[`master_${k}`].value = S.master[k]}); buildAutomationLanes(); }
 function buildAutomationLanes() { const sc = current(); const container = E.automationLanesContainer; container.innerHTML = ''; updateAutomationTimeline(); if (!sc) return; sc.curves = sc.curves || {}; for (const param in sc.curves) { if (sc.curves[param] && sc.curves[param].length > 0) { createAutomationLane(param); } } }
